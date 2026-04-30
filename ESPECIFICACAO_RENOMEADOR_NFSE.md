@@ -10,6 +10,27 @@
 
 ---
 
+## 0. Estado atual da implementacao
+
+Este documento agora esta organizado como roteiro sequencial da V1. A branch atual ja iniciou a implementacao do nucleo e deve continuar pela ordem da secao 9.
+
+Status em 30/04/2026:
+
+- [x] repositorio Git inicializado;
+- [x] projeto Java 17/Maven criado;
+- [x] nucleo inicial de leitura PDFBox criado;
+- [x] detector de layout Portal Nacional, ABRASF/ISSNet, sem texto e nao suportado criado;
+- [x] parsers iniciais de Portal Nacional e ABRASF/ISSNet criados;
+- [x] validacao inicial de CNPJ, cancelamento, retencao e nomeacao criada;
+- [x] testes automatizados iniciais passando com os PDFs modelo;
+- [ ] configuracao externa `empresas.yaml`;
+- [ ] processamento `batch` completo com movimentacao;
+- [ ] ledger persistente;
+- [ ] preservacao de originais;
+- [ ] separacao fisica dos PDFs agrupados;
+- [ ] modo `watch`;
+- [ ] pacote de implantacao e homologacao operacional.
+
 ## 1. Resumo simples da ideia
 
 O sistema vai funcionar como um organizador automatico de NFS-e, mas sem depender da pasta do projeto.
@@ -381,261 +402,330 @@ Para manter o Java limpo, profissional e facil de evoluir, a implementacao deve 
 
 Regra de projeto: parser nao move arquivo, mover arquivo nao interpreta nota, detector de layout nao extrai todos os campos fiscais, ledger nao decide regra de negocio. Essa separacao reduz acoplamento e facilita testes.
 
-## 9. Fases de execucao
+## 9. Ordem de implementacao da V1
 
-### Fase 0 - Preparacao do piloto e mapeamento da empresa
+Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste automatizado, commit pequeno e um criterio claro de aceite. A proxima etapa so deve comecar depois da anterior estar verde.
 
-**Objetivo**
+### Etapa 0 - Preparacao do repositorio e lote piloto
 
-Fechar as decisoes minimas antes de programar: empresa piloto, caminhos reais, CNPJ esperado, estrategia mensal, layouts alvo, nome padrao, campos obrigatorios e lote piloto de testes.
+**Objetivo:** deixar o projeto pronto para evolucao controlada e separar os PDFs que vao provar o comportamento da V1.
 
-**Entregas**
+**Implementar/organizar**
 
-- empresa piloto definida;
-- caminhos reais da empresa mapeados;
-- CNPJ esperado do tomador definido;
-- estrategia mensal definida;
-- padrao de nome aprovado;
-- lista de campos obrigatorios aprovada;
-- pacote piloto de PDFs reais separado por tipo de caso.
-
-**Casos que devem existir no piloto**
-
-- PDF com 1 nota valida do Portal Nacional;
-- PDF com 1 nota valida do layout ABRASF;
-- PDF com varias notas no mesmo arquivo;
-- PDF com campo obrigatorio ausente ou ilegivel;
-- PDF cujo tomador nao corresponde a empresa configurada;
-- PDF com retencao;
-- PDF sem retencao;
-- PDF cancelado;
-- PDF que nao seja NFS-e;
-- PDF sem texto utilizavel.
+- manter o codigo em repositorio Git separado das pastas operacionais das empresas;
+- manter os PDFs de exemplo apenas como lote de regressao/homologacao;
+- definir a empresa piloto, CNPJ esperado do tomador e estrutura de pastas de teste;
+- registrar, para cada PDF do lote, o resultado esperado.
 
 **Criterios de aceite**
 
-- existe uma empresa piloto definida com caminhos reais de teste;
-- existe definicao objetiva do que vai para `processados/` e do que vai para `revisar/`;
-- existe uma regra objetiva para `CNPJ INCORRETO PARA REPOSITORIO`;
-- existe uma regra objetiva para `MODELO NAO SUPORTADO`;
-- existe uma regra objetiva para `##CANCELADA##`;
-- existe uma regra objetiva para marcar ou nao `##RETIDO##`;
-- existe um padrao unico de nome para a V1.
+- o repositorio compila com Java 17 e Maven;
+- o lote piloto tem pelo menos: Portal Nacional valido, ABRASF/ISSNet valido, PDF agrupado, cancelada, CNPJ errado, sem texto e modelo nao suportado;
+- cada arquivo do lote tem status esperado documentado;
+- nenhuma pasta operacional real da empresa e usada como pasta do codigo.
 
-**Como validar**
+**Testes obrigatorios**
 
-- conferencia manual da estrutura real de pastas da empresa piloto;
+- `mvn test`;
 - conferencia manual do lote piloto;
-- checklist de regras aprovado pelo responsavel do processo.
+- `pdfinfo` nos PDFs agrupados para confirmar quantidade de paginas. Na amostra atual, `NotasPdf.pdf` tem 7 paginas/notas.
 
-### Fase 1 - Implantacao externa, cadastro de empresas e caminhos mensais
+### Etapa 1 - Nucleo de leitura, layout e parsing
 
-**Objetivo**
+**Objetivo:** conseguir ler PDF textual, identificar layout homologado e extrair campos obrigatorios sem mover arquivos.
 
-Garantir que o programa rode fora do repositorio e use apenas configuracao externa.
+**Implementar**
 
-**Entregas**
-
-- programa compilado para uso externo;
-- arquivo `empresas.yaml`;
-- configuracao de mes alvo ou caminho mensal;
-- caminho para `ledger`;
-- comando de execucao em `watch`;
-- comando de execucao em `batch`.
-
-**Criterios de aceite**
-
-- o programa roda fora do ambiente de desenvolvimento;
-- nenhum PDF operacional precisa ser copiado para dentro do repositorio do codigo;
-- os caminhos configurados controlam totalmente onde o sistema le e grava arquivos;
-- a pasta mensal correta e resolvida sem percorrer meses antigos;
-- adicionar uma nova empresa ao cadastro nao exige alteracao de codigo.
-
-**Como validar**
-
-- instalar o programa em uma pasta separada do projeto;
-- apontar a configuracao para a empresa piloto;
-- executar e confirmar que toda leitura e gravacao acontece somente na estrutura configurada;
-- cadastrar uma segunda empresa ficticia e validar apenas a carga de configuracao.
-
-### Fase 2 - Execucao watch/batch e anti-reprocessamento
-
-**Objetivo**
-
-Executar o processamento por evento ou por lote, evitando retrabalho e sem reler indefinidamente o mesmo PDF.
-
-**Entregas**
-
-- modo `watch` com `WatchService`;
-- modo `batch` para passada unica;
-- `StableFileGuard`;
-- `ProcessingLedger` persistente;
-- regra para ignorar arquivo ja processado;
-- encerramento limpo quando nao houver novos arquivos.
+- `PdfTextExtractor`;
+- `LayoutDetector`;
+- `InvoiceParser`;
+- `PortalNacionalParser`;
+- `AbrasfIssnetParser`;
+- `InvoiceExtractionService`;
+- testes com PDFs reais do lote.
 
 **Criterios de aceite**
 
-- em `watch`, o sistema so processa quando entrar arquivo novo;
-- em `batch`, o sistema percorre apenas uma vez e termina;
-- reexecutar o job sem arquivos novos nao duplica processamento;
-- reiniciar o programa nao faz ele reprocessar o que ja esta no ledger;
-- arquivo travado ou ainda em copia nao derruba o lote; deve ser aguardado, ignorado temporariamente ou reavaliado depois com log.
+- Portal Nacional / DANFSe v1.0 e identificado corretamente;
+- ABRASF municipal / ISSNet e identificado corretamente;
+- PDF textual fora dos layouts homologados vira `MODELO NAO SUPORTADO`;
+- PDF sem texto selecionavel suficiente vira revisao por `PDF SEM TEXTO`;
+- campos obrigatorios sao extraidos nos PDFs homologados: numero, data, prestador, CNPJ do prestador quando existir, tomador, CNPJ do tomador, valor do servico, valor liquido, cancelamento e retencao.
 
-**Como validar**
+**Testes obrigatorios**
 
-- iniciar o modo `watch` e colocar um PDF novo na pasta;
-- rodar o modo `batch` com a pasta vazia e conferir encerramento sem acao;
-- rodar novamente com o mesmo arquivo ja tratado e confirmar ausencia de retrabalho;
-- desligar e religar o programa e confirmar consulta correta ao ledger;
-- testar arquivo grande em copia e conferir a espera por estabilidade.
+- teste unitario de `LayoutDetector` para Portal Nacional, ABRASF, nao suportado e sem texto;
+- teste integrado de parser usando `NF 9 OK.pdf` ou equivalente Portal Nacional;
+- teste integrado de parser usando primeira pagina de `NotasPdf.pdf` ou equivalente ABRASF;
+- teste de PDF sem texto usando `NF 55034 OK.pdf`;
+- `mvn test`.
 
-### Fase 3 - Leitura do PDF e identificacao do layout
+### Etapa 2 - Regras fiscais operacionais
 
-**Objetivo**
+**Objetivo:** decidir status da nota com base nos dados extraidos, sem tocar em arquivos ainda.
 
-Ler o texto do PDF e classificar com seguranca entre Portal Nacional, ABRASF ou nao suportado.
+**Implementar**
 
-**Entregas**
-
-- extracao de texto de PDFs com conteudo selecionavel;
-- classificador com assinaturas textuais fixadas no plano;
-- regra para detectar PDF sem texto util;
-- encaminhamento de modelo nao suportado.
-
-**Criterios de aceite**
-
-- todos os PDFs textuais do lote piloto retornam texto nao vazio;
-- Portal Nacional e ABRASF sao classificados corretamente no lote piloto;
-- arquivo sem texto util vai para `revisar/` com motivo claro;
-- arquivo textual fora dos layouts homologados recebe `MODELO NAO SUPORTADO`.
-
-**Como validar**
-
-- executar o lote piloto e comparar layout esperado x layout detectado;
-- testar um PDF sem texto extraivel e confirmar envio para `revisar/`;
-- testar um PDF textual de layout estranho e confirmar `MODELO NAO SUPORTADO`.
-
-### Fase 4 - Deteccao de uma ou varias notas e separacao
-
-**Objetivo**
-
-Descobrir se o PDF contem uma unica NFS-e ou varias e separar cada nota em um arquivo independente.
-
-**Entregas**
-
-- regra para contar blocos de nota;
-- mecanismo de separacao por pagina ou fronteira segura;
-- fallback para revisao quando a separacao nao for confiavel.
+- `CompanyValidator`;
+- `CancellationDetector` ou regra equivalente isolada;
+- `RetentionDetector` ou regra equivalente isolada;
+- `ProcessingDecisionService`;
+- prioridade de status conforme secao 8.1.
 
 **Criterios de aceite**
 
-- PDF com uma unica nota gera exatamente um arquivo de saida;
-- PDF com varias notas gera um arquivo por nota identificada;
+- cancelada sempre tem prioridade e nunca segue fluxo normal;
+- layout nao suportado vai para revisao;
+- CNPJ do tomador divergente vira `CNPJ INCORRETO PARA REPOSITORIO`;
+- dados obrigatorios ausentes viram `DADOS OBRIGATORIOS AUSENTES`;
+- `##RETIDO##` so aparece com evidencia objetiva;
+- valores conflitantes de retencao vao para revisao, sem chute.
+
+**Testes obrigatorios**
+
+- teste de prioridade: cancelada vence qualquer outro status;
+- teste de CNPJ com pontuacao diferente, mas mesmos digitos;
+- teste de CNPJ divergente;
+- teste com retencao positiva explicita;
+- teste sem retencao;
+- teste de valor liquido menor que valor do servico;
+- teste de valores conflitantes indo para revisao;
+- `mvn test`.
+
+### Etapa 3 - Nomeacao segura
+
+**Objetivo:** gerar nomes finais previsiveis, legiveis e seguros para o sistema de arquivos.
+
+**Implementar**
+
+- `FileNameBuilder`;
+- sanitizacao de caracteres invalidos;
+- limite de tamanho;
+- sufixo incremental para colisao;
+- nomes de erro para `MODELO NAO SUPORTADO`, `CNPJ INCORRETO PARA REPOSITORIO` e `DADOS OBRIGATORIOS AUSENTES`.
+
+**Criterios de aceite**
+
+- nome normal segue `NF <numero> <prestador> <dataDD.MM.AAAA>.pdf`;
+- nota retida acrescenta `##RETIDO##`;
+- nota cancelada acrescenta `##CANCELADA##`;
+- nomes de erro indicam motivo operacional;
+- colisao nao sobrescreve arquivo existente;
+- nome invalido ou muito longo nao derruba o processamento.
+
+**Testes obrigatorios**
+
+- teste de nome normal;
+- teste de nome com `##RETIDO##`;
+- teste de nome com `##CANCELADA##`;
+- teste de caracteres invalidos;
+- teste de truncamento;
+- teste de colisao gerando `_01`, `_02`;
+- `mvn test`.
+
+### Etapa 4 - Separacao de PDFs agrupados
+
+**Objetivo:** transformar PDFs com varias notas em unidades independentes somente quando a fronteira for confiavel.
+
+**Implementar**
+
+- `InvoiceSplitter`;
+- deteccao de uma nota por pagina;
+- geracao fisica de um PDF por nota quando a pagina inteira representa uma nota;
+- fallback para revisao quando a fronteira nao for confiavel.
+
+**Criterios de aceite**
+
+- PDF com uma unica nota gera um unico resultado;
+- PDF agrupado por pagina gera um resultado por pagina/nota;
 - nenhuma nota e descartada silenciosamente;
-- quando houver ambiguidade de corte, o arquivo inteiro vai para `revisar/`.
+- PDF agrupado com corte ambiguo vai inteiro para `revisar/`;
+- PDFs separados abrem e contem apenas a nota esperada.
 
-**Como validar**
+**Testes obrigatorios**
 
-- usar `NotasPdf.pdf` como referencia principal de arquivo com varias notas;
-- conferir que `NotasPdf.pdf` gera 6 arquivos quando a amostra realmente tiver 6 notas, uma por pagina;
-- comparar quantidade de notas esperadas com quantidade de arquivos gerados;
-- abrir os PDFs separados e conferir se cada um contem apenas uma nota completa.
+- teste integrado com `NotasPdf.pdf`, esperando 7 notas na amostra atual;
+- teste de PDF de uma pagina;
+- teste de PDF multipagina com pagina sem layout suportado;
+- teste manual abrindo os PDFs separados gerados em uma pasta temporaria;
+- `mvn test`.
 
-### Fase 5 - Extracao de campos, cancelamento, validacao da empresa e retencao
+### Etapa 5 - Configuracao externa e caminhos mensais
 
-**Objetivo**
+**Objetivo:** permitir que o mesmo binario processe empresas diferentes sem alterar codigo.
 
-Extrair os dados obrigatorios, validar se a nota pertence a empresa correta, detectar cancelamento, detectar retencao e gerar o nome padrao.
+**Implementar**
 
-**Entregas**
-
-- parser de campos obrigatorios;
-- validacao do tomador contra o CNPJ esperado da configuracao;
-- detector de cancelamento;
-- detector de retencao;
-- montagem do nome padrao;
-- montagem de nomes de erro para `MODELO NAO SUPORTADO`, `CNPJ INCORRETO PARA REPOSITORIO` e `DADOS OBRIGATORIOS AUSENTES`.
-
-**Criterios de aceite**
-
-- para layouts homologados, todos os campos obrigatorios sao extraidos corretamente no lote piloto;
-- notas cujo tomador pertence a empresa configurada seguem no fluxo normal;
-- notas cujo tomador nao pertence a empresa configurada sao classificadas como `CNPJ INCORRETO PARA REPOSITORIO`;
-- notas com layout desconhecido sao classificadas como `MODELO NAO SUPORTADO`;
-- notas canceladas recebem `##CANCELADA##` e nao entram em `processados/`;
-- notas com retencao recebem `##RETIDO##`;
-- notas sem retencao nao recebem `##RETIDO##`;
-- nomes invalidos, muito longos ou duplicados sao tratados sem falha.
-
-**Como validar**
-
-- comparar manualmente os campos extraidos com o PDF original;
-- comparar o CNPJ do tomador extraido com o CNPJ esperado da empresa piloto;
-- comparar manualmente cancelamento esperado x cancelamento detectado;
-- comparar manualmente retencao esperada x retencao detectada;
-- testar um PDF propositalmente colocado na pasta errada;
-- verificar se o nome do arquivo bate com os dados visiveis da nota.
-
-### Fase 6 - Destino final, revisao manual, canceladas e log
-
-**Objetivo**
-
-Tomar a decisao final de destino do arquivo e garantir rastreabilidade completa.
-
-**Entregas**
-
-- regra de aprovacao automatica;
-- regra de envio para `revisar/`;
-- regra de envio para `revisar/canceladas/`;
-- motivos especificos por status;
-- gravacao de log por arquivo;
-- gravacao no ledger por arquivo processado.
+- `CompanyRegistryLoader`;
+- `CompanySelector`;
+- `MonthlyPathResolver`;
+- validacao do `empresas.yaml`;
+- exemplo de `empresas.example.yaml`.
 
 **Criterios de aceite**
 
-- arquivos completos, confiaveis e da empresa correta terminam em `processados/`;
-- arquivos incompletos, ambiguos, cancelados, fora do layout ou da empresa errada terminam no destino de revisao correto;
-- cada arquivo processado possui log com status e motivo;
-- cada arquivo processado fica registrado no ledger;
-- nao existem falhas silenciosas.
+- cadastro com uma ou varias empresas carrega corretamente;
+- empresa desabilitada nao e processada;
+- estrategias `atual`, `informado`, `lista` e `direto` resolvem as pastas corretas;
+- caminhos de entrada, processados, revisar, originais, logs, canceladas e ledger sao configuraveis;
+- configuracao invalida falha com mensagem clara.
 
-**Como validar**
+**Testes obrigatorios**
 
-- rodar o lote piloto completo e conferir destino final de cada caso;
-- provocar um caso de CNPJ divergente e confirmar envio para `revisar/`;
-- provocar um caso de layout desconhecido e confirmar `MODELO NAO SUPORTADO`;
-- provocar um caso de cancelamento e confirmar envio para `revisar/canceladas/`;
-- conferir se o log e o ledger permitem entender o que aconteceu sem abrir o codigo.
+- teste unitario de leitura de YAML valido;
+- teste de YAML invalido;
+- teste de cada estrategia mensal;
+- teste de empresa habilitada/desabilitada;
+- teste de caminho direto sem subpasta mensal;
+- `mvn test`.
 
-### Fase 7 - Homologacao controlada e entrada em operacao
+### Etapa 6 - Ledger, estabilidade e preservacao do original
 
-**Objetivo**
+**Objetivo:** garantir que o sistema nao perca original, nao processe arquivo incompleto e nao retrabalhe arquivo ja tratado.
 
-Liberar a V1 apenas depois de validar o comportamento com arquivos reais na estrutura da empresa piloto.
+**Implementar**
 
-**Entregas**
-
-- checklist de homologacao executado;
-- lote piloto processado do inicio ao fim;
-- teste de operacao em `watch`;
-- teste de operacao em `batch`;
-- ajuste fino de regras antes do uso operacional.
+- `StableFileGuard`;
+- `ProcessingLedger`;
+- calculo de `sha256`;
+- `OriginalArchiveService`;
+- politica de reprocessamento.
 
 **Criterios de aceite**
 
-- 100% dos arquivos homologados do lote piloto sao tratados corretamente;
-- 100% dos casos fora do padrao ou da empresa errada sao enviados para revisao;
-- 100% das canceladas sao desviadas do fluxo normal;
+- arquivo ainda em copia nao e processado;
+- original e copiado para `originais/` antes de qualquer movimentacao;
+- ledger registra `companyId`, caminho original, tamanho, data, hash, status, destino e data de processamento;
+- reexecutar o lote nao duplica arquivo nem reprocessa item ja registrado;
+- falha ao preservar original interrompe aquele arquivo e registra erro.
+
+**Testes obrigatorios**
+
+- teste de arquivo estavel;
+- teste de arquivo alterando tamanho;
+- teste de hash;
+- teste de ledger gravando e lendo;
+- teste de reexecucao ignorando item ja processado;
+- teste de preservacao do original em pasta temporaria;
+- `mvn test`.
+
+### Etapa 7 - Processamento batch completo
+
+**Objetivo:** executar uma passada unica em pastas configuradas, processando PDFs e encerrando.
+
+**Implementar**
+
+- `InputScanner`;
+- `BatchModeRunner`;
+- `DestinationService`;
+- integracao entre configuracao, extracao, decisao, nomeacao, arquivo original, destino, log e ledger;
+- CLI `batch`.
+
+**Criterios de aceite**
+
+- `batch` varre apenas as pastas ativas;
+- pasta vazia encerra sem erro;
+- PDF valido termina em `processados/`;
+- PDF cancelado termina em `revisar/canceladas/`;
+- PDF com CNPJ errado, modelo nao suportado, sem texto ou dados ausentes termina em `revisar/`;
+- cada arquivo tem registro de log e ledger;
+- nao ha sobrescrita silenciosa.
+
+**Testes obrigatorios**
+
+- teste integrado em diretorio temporario com lote misto;
+- teste de pasta vazia;
+- teste de reexecucao do mesmo lote;
+- teste de CNPJ divergente;
+- teste de cancelada;
+- teste de sem texto;
+- `mvn test`;
+- execucao manual: `java -jar target/renomeador-nfse-*.jar batch --config <arquivo>`.
+
+### Etapa 8 - Processamento watch
+
+**Objetivo:** vigiar apenas as pastas ativas e processar PDF novo quando chegar.
+
+**Implementar**
+
+- `WatchModeRunner`;
+- registro de pastas com `WatchService`;
+- reuso do mesmo pipeline do `batch`;
+- encerramento limpo.
+
+**Criterios de aceite**
+
+- `watch` registra apenas pastas ativas;
+- novo PDF copiado para entrada e processado apos estabilidade;
+- reiniciar `watch` respeita ledger existente;
+- falha de um arquivo nao derruba o processo inteiro;
+- logs permitem entender cada evento observado.
+
+**Testes obrigatorios**
+
+- teste automatizado de componente observavel quando viavel;
+- teste manual colocando PDF novo na pasta de entrada;
+- teste manual copiando arquivo grande gradualmente;
+- teste manual reiniciando o processo;
+- `mvn test`.
+
+### Etapa 9 - Logs, relatorio e pacote de implantacao
+
+**Objetivo:** entregar uma V1 operavel por usuario sem precisar abrir o codigo.
+
+**Implementar**
+
+- `ProcessingLogger`;
+- relatorio simples por execucao;
+- empacotamento Maven;
+- `README.md` operacional;
+- `.bat` opcional para Windows;
+- `empresas.example.yaml`.
+
+**Criterios de aceite**
+
+- cada arquivo processado tem status, motivo e destino no log;
+- execucao gera resumo com total processado, aprovados, revisar, canceladas e erros;
+- artefato `jar` e gerado por Maven;
+- comando de `batch` e `watch` esta documentado;
+- implantacao nao depende dos PDFs estarem dentro do repositorio.
+
+**Testes obrigatorios**
+
+- `mvn package`;
+- execucao do `jar` fora da pasta do projeto apontando para config externa;
+- conferencia manual de logs;
+- conferencia manual de relatorio;
+- teste em Windows antes de liberar `.bat`.
+
+### Etapa 10 - Homologacao controlada
+
+**Objetivo:** liberar uso operacional apenas depois de validar com arquivos reais da empresa piloto.
+
+**Executar**
+
+- rodar lote piloto completo em pasta temporaria igual a estrutura da empresa;
+- revisar resultado com o responsavel do processo;
+- ajustar regras apenas com novo teste de regressao;
+- congelar versao V1.
+
+**Criterios de aceite**
+
+- 100% dos PDFs homologados do lote piloto terminam no destino esperado;
+- 100% dos casos fora do padrao ou da empresa errada vao para revisao;
+- 100% das canceladas vao para `revisar/canceladas/`;
 - 0 perda de original;
-- 0 sobrescrita indevida de arquivos processados;
-- 0 reprocessamento indevido de arquivo ja registrado no ledger.
+- 0 sobrescrita indevida;
+- 0 reprocessamento indevido;
+- usuario do processo aprova os nomes gerados e os motivos de revisao.
 
-**Como validar**
+**Testes obrigatorios**
 
-- executar rodada controlada com os PDFs reais separados por categoria;
-- testar em caminho real da empresa piloto;
-- revisar o resultado com usuario do processo;
-- assinar checklist final de liberacao da V1.
+- checklist manual da secao 11.3;
+- execucao `batch` completa;
+- teste `watch` com inclusao real de arquivo;
+- comparacao do ledger e logs com os arquivos de saida;
+- assinatura de homologacao antes de producao.
 
 ## 10. Criterios gerais de aceite da V1
 
@@ -659,35 +749,53 @@ A V1 sera considerada pronta quando todos os itens abaixo forem verdadeiros:
 - o sistema gera nome padrao consistente;
 - o sistema decide corretamente entre `processados/`, `revisar/` e `revisar/canceladas/`;
 - o sistema gera log compreensivel por arquivo;
-- os testes do lote piloto passam integralmente.
+- os testes do lote piloto passam integralmente;
+- o `jar` final roda fora da pasta do projeto com configuracao externa.
 
-## 11. Estrategia de validacao posterior
+## 11. Matriz de validacao e testes posteriores
 
-### 11.1 Validacao tecnica
+### 11.1 Testes automatizados por componente
 
-- testes unitarios para configuracao, resolucao de pasta mensal, nomeacao, deteccao de layout, extracao de campos, validacao de CNPJ do tomador, deteccao de retencao e deteccao de cancelamento;
-- testes unitarios para prioridade de status;
-- testes unitarios para ledger e anti-reprocessamento;
-- testes integrados com PDFs reais do lote piloto;
-- testes de regressao sempre que um novo layout for adicionado;
-- teste de permissao de leitura e escrita nos caminhos externos;
-- teste do modo `watch` com inclusao real de arquivo;
-- teste do modo `batch` sem novos arquivos.
+| Componente | O que testar | Tipo |
+| --- | --- | --- |
+| `CompanyRegistryLoader` | YAML valido, invalido, empresa desabilitada, caminhos faltantes | Unitario |
+| `MonthlyPathResolver` | `atual`, `informado`, `lista`, `direto` | Unitario |
+| `PdfTextExtractor` | PDF textual, PDF sem texto, erro de arquivo | Integrado |
+| `LayoutDetector` | Portal Nacional, ABRASF/ISSNet, nao suportado, sem texto | Unitario |
+| `PortalNacionalParser` | campos obrigatorios, retencao, cancelamento | Integrado com PDF real |
+| `AbrasfIssnetParser` | campos obrigatorios, retencao, cancelamento | Integrado com PDF real |
+| `InvoiceSplitter` | PDF unico, PDF agrupado por pagina, corte ambiguo | Integrado |
+| `CompanyValidator` | CNPJ igual com mascara diferente, CNPJ divergente, ausente | Unitario |
+| `RetentionDetector` | retencao explicita, sem retencao, valores conflitantes | Unitario |
+| `FileNameBuilder` | nome normal, retido, cancelado, erro, colisao, caracteres invalidos | Unitario |
+| `ProcessingLedger` | grava, le, ignora reprocessamento, hash muda | Unitario |
+| `StableFileGuard` | arquivo estavel, arquivo em copia, arquivo bloqueado | Unitario/Integrado |
+| `DestinationService` | processados, revisar, canceladas, colisao | Integrado |
+| `BatchModeRunner` | pasta vazia, lote misto, reexecucao | Integrado |
+| `WatchModeRunner` | chegada de arquivo, estabilidade, reinicio | Manual/Integrado |
 
-### 11.2 Validacao funcional
+### 11.2 Testes funcionais por tipo de arquivo
 
-Para cada arquivo do lote piloto, registrar:
+Para cada PDF do lote piloto, registrar e validar:
 
 - nome original;
 - empresa configurada;
 - mes resolvido;
 - CNPJ esperado do tomador;
-- tipo esperado do arquivo;
+- layout esperado;
 - quantidade esperada de notas;
-- campos obrigatorios esperados;
+- numero esperado da nota;
+- data esperada;
+- prestador esperado;
+- CNPJ do prestador esperado quando existir;
+- tomador esperado;
+- CNPJ do tomador esperado;
+- valor do servico esperado;
+- valor liquido esperado;
 - status esperado;
 - destino esperado;
 - retencao esperada;
+- cancelamento esperado;
 - nome esperado do arquivo final.
 
 ### 11.3 Checklist manual de homologacao
@@ -699,12 +807,15 @@ Para cada arquivo do lote piloto, registrar:
 - o CNPJ do tomador bate com o CNPJ esperado da empresa nos casos corretos;
 - notas na pasta errada foram desviadas com `CNPJ INCORRETO PARA REPOSITORIO`;
 - layouts nao suportados foram desviados com `MODELO NAO SUPORTADO`;
+- PDFs sem texto foram desviados para revisao sem OCR;
 - notas canceladas foram desviadas com `##CANCELADA##`;
 - notas com retencao receberam `##RETIDO##`;
+- notas sem retencao nao receberam `##RETIDO##`;
 - o nome final esta no padrao;
 - o destino final do arquivo esta correto;
 - o ledger registrou o processamento;
-- o log explica claramente o resultado.
+- o log explica claramente o resultado;
+- reexecutar o lote nao duplicou arquivos.
 
 ### 11.4 Regra para evolucao futura
 
@@ -713,7 +824,9 @@ Qualquer nova prefeitura, nova empresa ou nova regra de negocio so entra em prod
 - adicionar PDFs reais daquele novo caso ao lote de regressao;
 - cadastrar o novo caminho e o CNPJ esperado da empresa;
 - criar regra de identificacao do novo layout;
-- validar novamente o fluxo de `processados/`, `revisar/` e `canceladas/`.
+- criar ou ajustar parser especifico quando necessario;
+- validar novamente o fluxo de `processados/`, `revisar/` e `canceladas/`;
+- rodar `mvn test` e a homologacao funcional do lote afetado.
 
 ## 12. Riscos conhecidos e tratamento
 
@@ -743,14 +856,20 @@ Depois da V1 estabilizada, as proximas evolucoes naturais sao:
 
 ## 14. Definicao de pronto
 
-Este projeto esta pronto para iniciar implementacao quando houver:
+Este projeto esta pronto para liberar a V1 operacional quando houver:
 
-- empresa piloto escolhida;
-- caminhos reais da empresa piloto definidos;
+- todas as etapas da secao 9 implementadas na ordem definida;
+- todos os criterios gerais da secao 10 atendidos;
+- matriz de testes da secao 11 executada para o lote piloto;
+- empresa piloto escolhida e configurada em `empresas.yaml`;
+- caminhos reais da empresa piloto validados em ambiente controlado;
 - CNPJ esperado do tomador aprovado para validacao;
 - estrategia mensal aprovada;
-- lote piloto separado e nomeado;
-- padrao final de nome aprovado;
+- lote piloto separado, nomeado e com resultados esperados registrados;
+- padrao final de nome aprovado pelo responsavel do processo;
 - campos obrigatorios aprovados;
 - decisao clara do que e sucesso automatico, revisao manual, `CNPJ INCORRETO PARA REPOSITORIO`, `MODELO NAO SUPORTADO` e `##CANCELADA##`;
+- `mvn test` e `mvn package` passando;
+- rodada `batch` completa aprovada;
+- teste `watch` aprovado;
 - aceite deste documento como guia da V1.
