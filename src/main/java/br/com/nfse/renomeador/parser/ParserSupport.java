@@ -44,16 +44,56 @@ final class ParserSupport {
     }
 
     static String section(String text, String startMarker, String endMarker) {
-        String normalized = TextNormalizer.normalize(text);
-        int start = normalized.indexOf(TextNormalizer.normalize(startMarker));
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        String normalizedStart = TextNormalizer.normalize(startMarker);
+        String normalizedEnd = TextNormalizer.normalize(endMarker);
+        int start = -1;
+        int end = text.length();
+
+        int offset = 0;
+        while (offset < text.length()) {
+            int lineEnd = lineEnd(text, offset);
+            int nextOffset = nextLineOffset(text, lineEnd);
+            String line = text.substring(offset, lineEnd);
+            String normalizedLine = TextNormalizer.normalize(line);
+
+            if (start < 0 && normalizedLine.contains(normalizedStart)) {
+                start = offset;
+            } else if (start >= 0 && normalizedLine.contains(normalizedEnd)) {
+                end = offset;
+                break;
+            }
+
+            offset = nextOffset;
+        }
         if (start < 0) {
             return "";
         }
-        int end = normalized.indexOf(TextNormalizer.normalize(endMarker), start + 1);
-        if (end < 0) {
-            end = text.length();
+        return text.substring(start, end);
+    }
+
+    private static int lineEnd(String text, int offset) {
+        int index = offset;
+        while (index < text.length()) {
+            char current = text.charAt(index);
+            if (current == '\n' || current == '\r') {
+                return index;
+            }
+            index++;
         }
-        return text.substring(Math.min(start, text.length()), Math.min(end, text.length()));
+        return text.length();
+    }
+
+    private static int nextLineOffset(String text, int lineEnd) {
+        if (lineEnd >= text.length()) {
+            return text.length();
+        }
+        if (text.charAt(lineEnd) == '\r' && lineEnd + 1 < text.length() && text.charAt(lineEnd + 1) == '\n') {
+            return lineEnd + 2;
+        }
+        return lineEnd + 1;
     }
 
     static String firstMeaningfulLine(String text) {

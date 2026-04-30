@@ -75,21 +75,37 @@ class ProcessingRulesTest {
 
         String name = new FileNameBuilder().build(invoice, ProcessingStatus.OK);
 
-        assertThat(name).isEqualTo("NF 000009 63.216.712 ERNANE FLAUZINO CAMPOS 02.04.2026 ##RETIDO##.pdf");
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_140,00_##RETIDO##.pdf");
     }
 
     @Test
-    void fileNameBuilderPlacesUnsupportedReasonBeforeProviderName() {
+    void fileNameBuilderOkWithoutRetentionIncludesValue() {
+        String name = new FileNameBuilder().build(invoice(), ProcessingStatus.OK);
+
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_140,00.pdf");
+    }
+
+    @Test
+    void fileNameBuilderPlacesUnsupportedReasonBeforeDate() {
         String name = new FileNameBuilder().build(invoice(), ProcessingStatus.UNSUPPORTED);
 
-        assertThat(name).isEqualTo("NF 000009 MODELO NAO SUPORTADO 02.04.2026.pdf");
+        assertThat(name).isEqualTo("NFSE_9_MODELO_NAO_SUPORTADO_20260402.pdf");
     }
 
     @Test
-    void fileNameBuilderPlacesWrongCompanyReasonBeforeProviderName() {
+    void fileNameBuilderPlacesWrongCompanyReasonWithProvider() {
         String name = new FileNameBuilder().build(invoice(), ProcessingStatus.WRONG_COMPANY);
 
-        assertThat(name).isEqualTo("NF 000009 CNPJ INCORRETO PARA REPOSITORIO 63.216.712 ERNANE FLAUZINO CAMPOS 02.04.2026.pdf");
+        assertThat(name).isEqualTo("NFSE_9_CNPJ_INCORRETO_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402.pdf");
+    }
+
+    @Test
+    void fileNameBuilderCancelledUsesMarker() {
+        InvoiceData invoice = invoice().withCancelled(true);
+
+        String name = new FileNameBuilder().build(invoice, ProcessingStatus.CANCELLED);
+
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_##CANCELADA##.pdf");
     }
 
     private static InvoiceData invoice() {

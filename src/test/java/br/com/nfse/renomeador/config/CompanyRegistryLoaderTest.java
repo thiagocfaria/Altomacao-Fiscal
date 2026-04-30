@@ -78,4 +78,22 @@ class CompanyRegistryLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("cnpjTomador");
     }
+
+    @Test
+    void enablesCompanyByDefaultWhenEnabledFlagIsOmitted() throws Exception {
+        Path yaml = tempDir.resolve("empresas.yaml");
+        Files.writeString(yaml, """
+                empresas:
+                  - id: empresa_a
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "/dados/EmpresaA/NFSe"
+                    pastas:
+                      entrada: "entrada"
+                """);
+
+        CompanyRegistry registry = new CompanyRegistryLoader().load(yaml);
+
+        assertThat(registry.companyById("empresa_a").orElseThrow().enabled()).isTrue();
+    }
 }

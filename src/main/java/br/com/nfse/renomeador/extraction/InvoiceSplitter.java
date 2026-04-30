@@ -21,9 +21,10 @@ public final class InvoiceSplitter {
     private final LayoutDetector detector = new LayoutDetector();
 
     public List<InvoiceData> splitSupportedPages(Path pdf) throws IOException {
-        LayoutType documentLayout = detector.detect(extractor.extractText(pdf));
+        List<String> pages = extractor.extractPages(pdf);
+        LayoutType documentLayout = detector.detect(String.join("\n", pages));
         List<InvoiceData> invoices = new ArrayList<>();
-        for (String page : extractor.extractPages(pdf)) {
+        for (String page : pages) {
             LayoutType layout = detector.detect(page);
             if ((layout == LayoutType.NO_TEXT || layout == LayoutType.UNSUPPORTED)
                     && (documentLayout == LayoutType.PORTAL_NACIONAL || documentLayout == LayoutType.ABRASF_ISSNET)) {
@@ -40,7 +41,7 @@ public final class InvoiceSplitter {
 
     public List<Path> splitSupportedPagesToFiles(Path pdf, Path outputDirectory) throws IOException {
         List<String> pages = extractor.extractPages(pdf);
-        LayoutType documentLayout = detector.detect(extractor.extractText(pdf));
+        LayoutType documentLayout = detector.detect(String.join("\n", pages));
         for (int index = 0; index < pages.size(); index++) {
             LayoutType layout = supportedLayoutForPage(pages.get(index), documentLayout);
             if (layout != LayoutType.PORTAL_NACIONAL && layout != LayoutType.ABRASF_ISSNET) {

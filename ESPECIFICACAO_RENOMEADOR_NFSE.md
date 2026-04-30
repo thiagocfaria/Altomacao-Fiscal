@@ -6,7 +6,7 @@
 
 **Architecture:** a aplicacao Java ficara em um repositorio externo e sera implantada separadamente na maquina de uso. A V1 deve suportar os dois modos no mesmo binario: `watch`, para vigiar somente as pastas ativas e processar quando um arquivo novo entrar, e `batch`, para execucao manual ou por `.bat`/Agendador do Windows como rede de seguranca. A configuracao sera externa, em cadastro de empresas com CNPJ esperado do tomador, estrategia de pasta mensal e caminhos de destino; o sistema processa direto na pasta da empresa, preserva o original, evita reprocessamento com ledger persistente e manda excecoes para revisao.
 
-**Tech Stack:** Java 17, Maven, Apache PDFBox, `java.nio.file`, `WatchService`, arquivo externo de configuracao em `.yaml`, JUnit 5, AssertJ, SLF4J/Logback, Picocli para CLI, `.bat` opcional para modo `batch`. A V1 trabalha apenas com PDFs textuais; PDF sem texto selecionavel suficiente vai para revisao, sem OCR.
+**Tech Stack:** Java 17, Maven, Apache PDFBox, `java.nio.file`, `WatchService`, arquivo externo de configuracao em `.yaml` lido com Jackson YAML, JUnit 5, AssertJ, SLF4J/Logback, Picocli para CLI, `.bat` opcional para modo `batch`. A V1 trabalha apenas com PDFs textuais; PDF sem texto selecionavel suficiente vai para revisao, sem OCR.
 
 ---
 
@@ -258,31 +258,31 @@ Campos desejaveis para log e conferencias futuras:
 Padrao recomendado para a V1, alinhado com o processo manual desejado:
 
 ```text
-NF <numero> <prestador> <dataDD.MM.AAAA>[ ##RETIDO##].pdf
+NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valorServico>[_##RETIDO##].pdf
 ```
 
 Exemplos:
 
 ```text
-NF 00007 KELLE EVANETE LEMES DE ALMEIDA 24.04.2026.pdf
-NF 000252 INVENTO MARKETING DIGITAL E TREINAMENTOS LTDA 04.03.2026 ##RETIDO##.pdf
-NF 000252 INVENTO MARKETING DIGITAL E TREINAMENTOS LTDA 04.03.2026 ##CANCELADA##.pdf
+NFSE_7_KELLE_EVANETE_LEMES_DE_ALMEIDA_20260424_256,50.pdf
+NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_20260304_1400,00_##RETIDO##.pdf
+NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_20260304_##CANCELADA##.pdf
 ```
 
 Padroes de erro no nome:
 
 ```text
-NF <numero-ou-DESCONHECIDA> MODELO NAO SUPORTADO <data-ou-sem-data>.pdf
-NF <numero-ou-DESCONHECIDA> CNPJ INCORRETO PARA REPOSITORIO <prestador-ou-desconhecido> <data-ou-sem-data>.pdf
-NF <numero-ou-DESCONHECIDA> DADOS OBRIGATORIOS AUSENTES <data-ou-sem-data>.pdf
+NFSE_<numero-ou-DESCONHECIDA>_MODELO_NAO_SUPORTADO_<data-ou-sem-data>.pdf
+NFSE_<numero-ou-DESCONHECIDA>_CNPJ_INCORRETO_<prestador-ou-desconhecido>_<data-ou-sem-data>.pdf
+NFSE_<numero-ou-DESCONHECIDA>_DADOS_AUSENTES_<data-ou-sem-data>.pdf
 ```
 
 Regras:
 
 - remover apenas caracteres invalidos para nome de arquivo;
-- preservar espacos para manter leitura humana;
+- usar `_` como separador para facilitar automacao e evitar ambiguidades em scripts;
 - normalizar acentos somente se o sistema de arquivos exigir;
-- numero da nota pode ser completado com zeros a esquerda para melhorar ordenacao;
+- numero da nota deve preservar o numero real, sem completar com zeros a esquerda;
 - limitar tamanho do nome quando necessario;
 - se houver colisao, acrescentar sufixo incremental como `_01`, `_02`;
 - `##RETIDO##` so aparece quando houver evidencia objetiva de retencao;
@@ -506,7 +506,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 
 **Criterios de aceite**
 
-- nome normal segue `NF <numero> <prestador> <dataDD.MM.AAAA>.pdf`;
+- nome normal segue `NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valorServico>.pdf`;
 - nota retida acrescenta `##RETIDO##`;
 - nota cancelada acrescenta `##CANCELADA##`;
 - nomes de erro indicam motivo operacional;

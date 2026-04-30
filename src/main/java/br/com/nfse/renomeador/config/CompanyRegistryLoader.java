@@ -1,6 +1,9 @@
 package br.com.nfse.renomeador.config;
 
-import org.yaml.snakeyaml.Yaml;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -11,10 +14,15 @@ import java.util.List;
 import java.util.Map;
 
 public final class CompanyRegistryLoader {
+    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final TypeReference<Map<String, Object>> YAML_MAP = new TypeReference<>() {
+    };
+
     public CompanyRegistry load(Path yamlPath) throws IOException {
         try (Reader reader = Files.newBufferedReader(yamlPath)) {
-            Object loaded = new Yaml().load(reader);
-            if (!(loaded instanceof Map<?, ?> root)) {
+            Map<String, Object> root = YAML_MAPPER.readValue(reader, YAML_MAP);
+            if (root == null) {
                 throw new IllegalArgumentException("Arquivo de configuracao invalido");
             }
             Object companiesNode = root.get("empresas");
@@ -38,7 +46,7 @@ public final class CompanyRegistryLoader {
         MonthStrategy strategy = MonthStrategy.fromConfig(requiredString(map, "estrategiaMes"));
         Path basePath = Path.of(requiredString(map, "pastaBase"));
         String monthSubfolder = optionalString(map, "subpastaMes", "{AAAA}/{MM}");
-        boolean enabled = map.containsKey("habilitada") && booleanValue(map.get("habilitada"));
+        boolean enabled = !map.containsKey("habilitada") || booleanValue(map.get("habilitada"));
         List<String> months = stringList(map.get("meses"));
         CompanyFolders folders = toFolders(map.get("pastas"));
 
