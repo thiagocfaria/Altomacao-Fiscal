@@ -38,12 +38,58 @@ class ProcessingRulesTest {
     }
 
     @Test
+    void processingDecisionPrioritizesWrongCompanyWhenOtherRequiredDataIsMissing() {
+        InvoiceData invoice = new InvoiceData(
+                LayoutType.PORTAL_NACIONAL,
+                "9",
+                "02/04/2026",
+                "",
+                "63.216.712/0001-62",
+                "DGA ENERGIA E AUTOMACAO LTDA",
+                "25.014.360/0001-73",
+                new BigDecimal("140.00"),
+                new BigDecimal("140.00"),
+                false,
+                false
+        );
+
+        ProcessingDecision decision = new ProcessingDecisionService("00.000.000/0001-00").decide(invoice);
+
+        assertThat(decision.status()).isEqualTo(ProcessingStatus.WRONG_COMPANY);
+        assertThat(decision.reviewRequired()).isTrue();
+    }
+
+    @Test
+    void processingDecisionSendsRetentionConflictToReview() {
+        InvoiceData invoice = invoice().withRetentionConflict(true);
+
+        ProcessingDecision decision = new ProcessingDecisionService("25.014.360/0001-73").decide(invoice);
+
+        assertThat(decision.status()).isEqualTo(ProcessingStatus.RETENTION_CONFLICT);
+        assertThat(decision.reviewRequired()).isTrue();
+    }
+
+    @Test
     void fileNameBuilderUsesOperationalPatternAndRetentionMarker() {
         InvoiceData invoice = invoice().withRetained(true);
 
         String name = new FileNameBuilder().build(invoice, ProcessingStatus.OK);
 
         assertThat(name).isEqualTo("NF 000009 63.216.712 ERNANE FLAUZINO CAMPOS 02.04.2026 ##RETIDO##.pdf");
+    }
+
+    @Test
+    void fileNameBuilderPlacesUnsupportedReasonBeforeProviderName() {
+        String name = new FileNameBuilder().build(invoice(), ProcessingStatus.UNSUPPORTED);
+
+        assertThat(name).isEqualTo("NF 000009 MODELO NAO SUPORTADO 02.04.2026.pdf");
+    }
+
+    @Test
+    void fileNameBuilderPlacesWrongCompanyReasonBeforeProviderName() {
+        String name = new FileNameBuilder().build(invoice(), ProcessingStatus.WRONG_COMPANY);
+
+        assertThat(name).isEqualTo("NF 000009 CNPJ INCORRETO PARA REPOSITORIO 63.216.712 ERNANE FLAUZINO CAMPOS 02.04.2026.pdf");
     }
 
     private static InvoiceData invoice() {

@@ -16,23 +16,25 @@ Implementado nesta primeira fatia:
 - parser de campos principais para Portal Nacional e ABRASF/ISSNet;
 - deteccao de cancelamento;
 - deteccao conservadora de retencao;
+- envio para revisao quando houver evidencia conflitante de retencao;
 - validacao do CNPJ do tomador contra o CNPJ esperado;
 - montagem do nome operacional;
-- separacao logica de PDF agrupado por paginas quando o documento inteiro pertence a layout homologado.
+- separacao logica e fisica de PDF agrupado por paginas quando o documento inteiro pertence a layout homologado;
 - carga e validacao inicial de `empresas.yaml`;
 - selecao de empresas habilitadas;
-- resolucao de pastas mensais por estrategia `atual`, `informado`, `lista` e `direto`.
+- resolucao de pastas mensais por estrategia `atual`, `informado`, `lista` e `direto`;
 - calculo de SHA-256;
 - ledger persistente basico;
 - guarda de estabilidade basica para arquivo legivel;
-- preservacao do original com tratamento de colisao.
+- preservacao do original com tratamento de colisao;
+- jar Maven empacotado com dependencias.
 
 Ainda nao implementado nesta fatia:
 
 - processamento completo de pastas externas;
 - `watch`;
 - `batch` completo com movimentacao;
-- geracao fisica dos PDFs separados.
+- CLI operacional.
 
 ## Verificacao
 

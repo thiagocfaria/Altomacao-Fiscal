@@ -27,7 +27,7 @@ Status em 30/04/2026:
 - [ ] processamento `batch` completo com movimentacao;
 - [x] ledger persistente;
 - [x] preservacao de originais;
-- [ ] separacao fisica dos PDFs agrupados;
+- [x] separacao fisica dos PDFs agrupados por pagina segura;
 - [ ] modo `watch`;
 - [ ] pacote de implantacao e homologacao operacional.
 

@@ -62,4 +62,66 @@ class InvoiceParsersTest {
         assertThat(invoice.number()).isEqualTo("48");
         assertThat(invoice.cancelled()).isTrue();
     }
+
+    @Test
+    void portalParserMarksExplicitFederalRetentionAsRetained() {
+        String text = """
+                EMITENTE DA NFS-e
+                NOME / NOME EMPRESARIAL
+                PRESTADOR TESTE
+                CNPJ / CPF / NIF
+                11.111.111/0001-11
+                TOMADOR DO SERVICO
+                NOME / NOME EMPRESARIAL
+                TOMADOR TESTE
+                CNPJ / CPF / NIF
+                25.014.360/0001-73
+                INTERMEDIARIO
+                Numero da NFS-e
+                123
+                Data e Hora da emissao da NFS-e
+                02/04/2026
+                VALOR TOTAL DA NFS-E
+                Valor do Servico R$ 100,00
+                Valor Liquido da NFS-e R$ 95,00
+                TOTAIS APROXIMADOS
+                Total das Retencoes Federais R$ 5,00
+                """;
+
+        InvoiceData invoice = new PortalNacionalParser().parse(text);
+
+        assertThat(invoice.retained()).isTrue();
+        assertThat(invoice.retentionConflict()).isFalse();
+    }
+
+    @Test
+    void portalParserMarksConflictingRetentionEvidenceForReviewDecision() {
+        String text = """
+                EMITENTE DA NFS-e
+                NOME / NOME EMPRESARIAL
+                PRESTADOR TESTE
+                CNPJ / CPF / NIF
+                11.111.111/0001-11
+                TOMADOR DO SERVICO
+                NOME / NOME EMPRESARIAL
+                TOMADOR TESTE
+                CNPJ / CPF / NIF
+                25.014.360/0001-73
+                INTERMEDIARIO
+                Numero da NFS-e
+                123
+                Data e Hora da emissao da NFS-e
+                02/04/2026
+                VALOR TOTAL DA NFS-E
+                Valor do Servico R$ 100,00
+                Valor Liquido da NFS-e R$ 95,00
+                TOTAIS APROXIMADOS
+                ISSQN Retido Nao Retido
+                """;
+
+        InvoiceData invoice = new PortalNacionalParser().parse(text);
+
+        assertThat(invoice.retained()).isFalse();
+        assertThat(invoice.retentionConflict()).isTrue();
+    }
 }

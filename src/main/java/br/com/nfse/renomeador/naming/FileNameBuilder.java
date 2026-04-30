@@ -9,15 +9,15 @@ public final class FileNameBuilder {
         String date = normalizeDate(invoice.issueDate());
         String provider = sanitize(invoice.providerName().isBlank() ? "DESCONHECIDO" : invoice.providerName());
 
-        String marker = switch (status) {
-            case CANCELLED -> " ##CANCELADA##";
-            case WRONG_COMPANY -> " CNPJ INCORRETO PARA REPOSITORIO";
-            case UNSUPPORTED -> " MODELO NAO SUPORTADO";
-            case MISSING_REQUIRED -> " DADOS OBRIGATORIOS AUSENTES";
-            case OK -> invoice.retained() ? " ##RETIDO##" : "";
+        String name = switch (status) {
+            case CANCELLED -> "NF " + number + " " + provider + " " + date + " ##CANCELADA##.pdf";
+            case WRONG_COMPANY -> "NF " + number + " CNPJ INCORRETO PARA REPOSITORIO " + provider + " " + date + ".pdf";
+            case UNSUPPORTED -> "NF " + number + " MODELO NAO SUPORTADO " + date + ".pdf";
+            case MISSING_REQUIRED -> "NF " + number + " DADOS OBRIGATORIOS AUSENTES " + date + ".pdf";
+            case RETENTION_CONFLICT -> "NF " + number + " RETENCAO CONFLITANTE " + provider + " " + date + ".pdf";
+            case OK -> "NF " + number + " " + provider + " " + date + (invoice.retained() ? " ##RETIDO##" : "") + ".pdf";
         };
 
-        String name = "NF " + number + " " + provider + " " + date + marker + ".pdf";
         return name.replaceAll("\\s+", " ").strip();
     }
 

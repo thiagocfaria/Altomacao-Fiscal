@@ -20,6 +20,7 @@ public final class PortalNacionalParser implements InvoiceParser {
         List<BigDecimal> money = ParserSupport.moneyValues(valores);
         BigDecimal serviceValue = money.isEmpty() ? null : money.get(0);
         BigDecimal netValue = money.isEmpty() ? null : money.get(money.size() - 1);
+        ParserSupport.RetentionAnalysis retention = ParserSupport.retentionAnalysis(text, serviceValue, netValue);
 
         return new InvoiceData(
                 LayoutType.PORTAL_NACIONAL,
@@ -31,7 +32,8 @@ public final class PortalNacionalParser implements InvoiceParser {
                 ParserSupport.firstCnpj(tomador).orElse(""),
                 serviceValue,
                 netValue,
-                ParserSupport.hasPositiveRetention(text, serviceValue, netValue),
+                retention.retained(),
+                retention.conflict(),
                 ParserSupport.isCancelled(text)
         );
     }

@@ -13,6 +13,9 @@ final class ParserSupport {
     private static final Pattern CNPJ = Pattern.compile("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}");
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{4}");
     private static final Pattern MONEY = Pattern.compile("R\\$\\s*([0-9.]+,[0-9]{2})");
+    private static final Pattern POSITIVE_RETENTION_VALUE = Pattern.compile(
+            "(ISSQN RETIDO|VL\\. ISSQN RETIDO|TOTAL DAS RETENCOES FEDERAIS|PIS|COFINS|INSS|IRRF|CSLL|OUTRAS RETENCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:,00)?)([0-9.]+,[0-9]{2})"
+    );
 
     private ParserSupport() {
     }
@@ -93,17 +96,36 @@ final class ParserSupport {
                 || normalized.contains("JUSTIFICATIVA DE CANCELAMENTO");
     }
 
-    static boolean hasPositiveRetention(String text, BigDecimal serviceValue, BigDecimal netValue) {
+    static RetentionAnalysis retentionAnalysis(String text, BigDecimal serviceValue, BigDecimal netValue) {
         String normalized = TextNormalizer.normalize(text);
-        if (normalized.contains("NAO RETIDO") && (serviceValue == null || netValue == null || netValue.compareTo(serviceValue) == 0)) {
-            return false;
+        boolean notRetained = normalized.contains("NAO RETIDO");
+        boolean explicitPositive = normalized.matches("(?s).*ISSQN RETIDO\\s+SIM.*")
+                || POSITIVE_RETENTION_VALUE.matcher(normalized).find();
+        boolean netLowerThanService = serviceValue != null && netValue != null && netValue.compareTo(serviceValue) < 0;
+
+        if (notRetained && (explicitPositive || netLowerThanService)) {
+            return new RetentionAnalysis(false, true);
         }
-        if (normalized.contains("ISSQN RETIDO") && normalized.matches("(?s).*ISSQN RETIDO\\s+(SIM|R\\$\\s*[1-9].*).*")) {
-            return true;
+        if (notRetained) {
+            return new RetentionAnalysis(false, false);
         }
-        if (serviceValue != null && netValue != null && netValue.compareTo(serviceValue) < 0) {
-            return true;
+        if (explicitPositive) {
+            return new RetentionAnalysis(true, false);
         }
-        return false;
+        if (netLowerThanService && !hasPositiveDiscountOrDeduction(normalized)) {
+            return new RetentionAnalysis(true, false);
+        }
+        return new RetentionAnalysis(false, false);
+    }
+
+    static boolean hasPositiveRetention(String text, BigDecimal serviceValue, BigDecimal netValue) {
+        return retentionAnalysis(text, serviceValue, netValue).retained();
+    }
+
+    private static boolean hasPositiveDiscountOrDeduction(String normalized) {
+        return normalized.matches("(?s).*(DESCONTO|DEDUCAO|DEDUCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:,00)?)([0-9.]+,[0-9]{2}).*");
+    }
+
+    record RetentionAnalysis(boolean retained, boolean conflict) {
     }
 }

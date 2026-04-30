@@ -25,6 +25,7 @@ public final class AbrasfIssnetParser implements InvoiceParser {
         List<BigDecimal> money = ParserSupport.moneyValues(ParserSupport.section(text, "Vl. Total dos Servicos", "Informacoes Adicionais"));
         BigDecimal serviceValue = money.isEmpty() ? null : money.get(0);
         BigDecimal netValue = money.isEmpty() ? null : money.get(money.size() - 1);
+        ParserSupport.RetentionAnalysis retention = ParserSupport.retentionAnalysis(text, serviceValue, netValue);
 
         return new InvoiceData(
                 LayoutType.ABRASF_ISSNET,
@@ -36,7 +37,8 @@ public final class AbrasfIssnetParser implements InvoiceParser {
                 ParserSupport.firstCnpj(tomador).orElse(""),
                 serviceValue,
                 netValue,
-                ParserSupport.hasPositiveRetention(text, serviceValue, netValue),
+                retention.retained(),
+                retention.conflict(),
                 ParserSupport.isCancelled(text)
         );
     }

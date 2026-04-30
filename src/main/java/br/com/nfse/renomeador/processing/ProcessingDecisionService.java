@@ -18,11 +18,14 @@ public final class ProcessingDecisionService {
         if (invoice.layout() == LayoutType.UNSUPPORTED || invoice.layout() == LayoutType.NO_TEXT) {
             return new ProcessingDecision(ProcessingStatus.UNSUPPORTED, true, "Modelo nao suportado");
         }
+        if (!isBlank(invoice.customerTaxId()) && !companyValidator.matches(invoice)) {
+            return new ProcessingDecision(ProcessingStatus.WRONG_COMPANY, true, "CNPJ incorreto para repositorio");
+        }
         if (missingRequiredData(invoice)) {
             return new ProcessingDecision(ProcessingStatus.MISSING_REQUIRED, true, "Dados obrigatorios ausentes");
         }
-        if (!companyValidator.matches(invoice)) {
-            return new ProcessingDecision(ProcessingStatus.WRONG_COMPANY, true, "CNPJ incorreto para repositorio");
+        if (invoice.retentionConflict()) {
+            return new ProcessingDecision(ProcessingStatus.RETENTION_CONFLICT, true, "Evidencia conflitante de retencao");
         }
         return new ProcessingDecision(ProcessingStatus.OK, false, "Processamento automatico aprovado");
     }

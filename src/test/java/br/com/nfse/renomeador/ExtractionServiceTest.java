@@ -5,13 +5,18 @@ import br.com.nfse.renomeador.extraction.InvoiceExtractionService;
 import br.com.nfse.renomeador.extraction.InvoiceSplitter;
 import br.com.nfse.renomeador.layout.LayoutType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ExtractionServiceTest {
     private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void extractsPortalNacionalPdfThroughSingleEntryPoint() throws Exception {
@@ -37,5 +42,19 @@ class ExtractionServiceTest {
 
         assertThat(notes).hasSize(7);
         assertThat(notes).allSatisfy(note -> assertThat(note.layout()).isEqualTo(LayoutType.ABRASF_ISSNET));
+    }
+
+    @Test
+    void writesOnePhysicalPdfPerSupportedPageFromGroupedAbrasfPdf() throws Exception {
+        Path outputDir = tempDir.resolve("split");
+
+        List<Path> files = new InvoiceSplitter().splitSupportedPagesToFiles(SAMPLES.resolve("NotasPdf.pdf"), outputDir);
+
+        assertThat(files).hasSize(7);
+        assertThat(files).allSatisfy(file -> {
+            assertThat(file).exists();
+            assertThat(new br.com.nfse.renomeador.pdf.PdfTextExtractor().extractPages(file)).hasSize(1);
+        });
+        assertThat(new InvoiceExtractionService().extract(files.get(0)).invoice().orElseThrow().number()).isEqualTo("346928");
     }
 }
