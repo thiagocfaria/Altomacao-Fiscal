@@ -1,5 +1,6 @@
 .codex
 .worktrees/
+.claude/settings.local.json
 target/
 *.class
 *.log
