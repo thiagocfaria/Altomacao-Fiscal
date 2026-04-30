@@ -164,9 +164,11 @@ empresas:
 Observacoes:
 
 - o sistema nao deve impor pastas dentro do repositorio do codigo;
+- a configuracao deve aceitar uma pasta de entrada ja existente, com PDFs ja presentes;
 - a empresa pode usar caminho direto ou pasta mensal;
 - quando a empresa usa pasta mensal, o sistema deve resolver apenas o mes ativo ou a lista configurada;
-- a mesma estrutura deve servir para crescer para varias empresas sem refatoracao estrutural.
+- a mesma estrutura deve servir para crescer para varias empresas sem refatoracao estrutural;
+- para homologacao com os PDFs modelo dentro do projeto, o `batch` deve ter uma opcao de preservar a pasta de entrada, gerando saidas em uma pasta de destino sem mover nem apagar os PDFs de exemplo.
 
 ### 4.2 Estrategia de pasta mensal
 
@@ -619,21 +621,25 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - `BatchModeRunner`;
 - `DestinationService`;
 - integracao entre configuracao, extracao, decisao, nomeacao, arquivo original, destino, log e ledger;
-- CLI `batch`.
+- CLI `batch`;
+- opcao de homologacao para preservar a pasta de entrada, usada quando o lote de PDFs modelo dentro do projeto for a origem do teste.
 
 **Criterios de aceite**
 
 - `batch` varre apenas as pastas ativas;
 - pasta vazia encerra sem erro;
+- `batch` aceita uma pasta existente configurada como entrada, sem exigir que o sistema crie uma estrutura nova antes;
 - PDF valido termina em `processados/`;
 - PDF cancelado termina em `revisar/canceladas/`;
 - PDF com CNPJ errado, modelo nao suportado, sem texto ou dados ausentes termina em `revisar/`;
 - cada arquivo tem registro de log e ledger;
-- nao ha sobrescrita silenciosa.
+- nao ha sobrescrita silenciosa;
+- em modo de homologacao com preservacao de entrada, os PDFs originais da pasta de entrada continuam no lugar.
 
 **Testes obrigatorios**
 
 - teste integrado em diretorio temporario com lote misto;
+- teste manual apontando para a pasta `NF MODELO ABRASP E PORTAL NACIONAL/` em modo de homologacao/preservacao;
 - teste de pasta vazia;
 - teste de reexecucao do mesmo lote;
 - teste de CNPJ divergente;
@@ -704,7 +710,8 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 
 **Executar**
 
-- rodar lote piloto completo em pasta temporaria igual a estrutura da empresa;
+- rodar primeiro o lote piloto dos PDFs modelo dentro do projeto em modo de homologacao, preservando a pasta de entrada;
+- depois rodar lote piloto completo apontando para uma pasta existente fora do projeto, igual a estrutura real da empresa;
 - revisar resultado com o responsavel do processo;
 - ajustar regras apenas com novo teste de regressao;
 - congelar versao V1.
@@ -723,6 +730,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 
 - checklist manual da secao 11.3;
 - execucao `batch` completa;
+- conferencia de que o teste com PDFs modelo dentro do projeto nao moveu nem apagou os arquivos de entrada;
 - teste `watch` com inclusao real de arquivo;
 - comparacao do ledger e logs com os arquivos de saida;
 - assinatura de homologacao antes de producao.
