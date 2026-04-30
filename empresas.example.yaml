@@ -3,6 +3,7 @@ empresas:
     habilitada: true
     cnpjTomador: "25.014.360/0001-73"
     estrategiaMes: "atual" # atual | informado | lista | direto
+    # Use --mes AAAA-MM quando estrategiaMes for "informado".
     meses: []
     pastaBase: "D:/Empresas/EmpresaPiloto/NFSe"
     subpastaMes: "{AAAA}/{MM}"
