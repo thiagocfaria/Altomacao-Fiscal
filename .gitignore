@@ -1,0 +1,7 @@
+.codex
+.worktrees/
+target/
+*.class
+*.log
+*.tmp
+.DS_Store
