@@ -22,14 +22,16 @@ Implementado nesta primeira fatia:
 - carga e validacao inicial de `empresas.yaml`;
 - selecao de empresas habilitadas;
 - resolucao de pastas mensais por estrategia `atual`, `informado`, `lista` e `direto`.
+- calculo de SHA-256;
+- ledger persistente basico;
+- guarda de estabilidade basica para arquivo legivel;
+- preservacao do original com tratamento de colisao.
 
 Ainda nao implementado nesta fatia:
 
 - processamento completo de pastas externas;
 - `watch`;
 - `batch` completo com movimentacao;
-- ledger persistente;
-- arquivamento de original;
 - geracao fisica dos PDFs separados.
 
 ## Verificacao

@@ -25,8 +25,8 @@ Status em 30/04/2026:
 - [x] testes automatizados iniciais passando com os PDFs modelo;
 - [x] configuracao externa `empresas.yaml`;
 - [ ] processamento `batch` completo com movimentacao;
-- [ ] ledger persistente;
-- [ ] preservacao de originais;
+- [x] ledger persistente;
+- [x] preservacao de originais;
 - [ ] separacao fisica dos PDFs agrupados;
 - [ ] modo `watch`;
 - [ ] pacote de implantacao e homologacao operacional.
