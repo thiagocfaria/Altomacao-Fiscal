@@ -23,7 +23,7 @@ Status em 30/04/2026:
 - [x] parsers iniciais de Portal Nacional e ABRASF/ISSNet criados;
 - [x] validacao inicial de CNPJ, cancelamento, retencao e nomeacao criada;
 - [x] testes automatizados iniciais passando com os PDFs modelo;
-- [ ] configuracao externa `empresas.yaml`;
+- [x] configuracao externa `empresas.yaml`;
 - [ ] processamento `batch` completo com movimentacao;
 - [ ] ledger persistente;
 - [ ] preservacao de originais;

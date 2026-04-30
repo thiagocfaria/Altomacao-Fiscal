@@ -19,10 +19,13 @@ Implementado nesta primeira fatia:
 - validacao do CNPJ do tomador contra o CNPJ esperado;
 - montagem do nome operacional;
 - separacao logica de PDF agrupado por paginas quando o documento inteiro pertence a layout homologado.
+- carga e validacao inicial de `empresas.yaml`;
+- selecao de empresas habilitadas;
+- resolucao de pastas mensais por estrategia `atual`, `informado`, `lista` e `direto`.
 
 Ainda nao implementado nesta fatia:
 
-- processamento de pastas externas;
+- processamento completo de pastas externas;
 - `watch`;
 - `batch` completo com movimentacao;
 - ledger persistente;
@@ -37,6 +40,10 @@ Use um repositorio Maven local em `/tmp` quando o ambiente nao permitir escrita 
 mvn -Dmaven.repo.local=/tmp/m2-nfse test
 mvn -Dmaven.repo.local=/tmp/m2-nfse package
 ```
+
+## Configuracao
+
+Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codigo nao deve depender de PDFs ou pastas operacionais dentro do repositorio.
 
 ## Observacao de auditoria do plano
 
