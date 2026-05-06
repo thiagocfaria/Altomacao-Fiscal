@@ -75,28 +75,35 @@ class ProcessingRulesTest {
 
         String name = new FileNameBuilder().build(invoice, ProcessingStatus.OK);
 
-        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_140,00_##RETIDO##.pdf");
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_140,00_##IR_RETIDO##.pdf");
     }
 
     @Test
     void fileNameBuilderOkWithoutRetentionIncludesValue() {
         String name = new FileNameBuilder().build(invoice(), ProcessingStatus.OK);
 
-        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_140,00.pdf");
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_140,00.pdf");
+    }
+
+    @Test
+    void fileNameBuilderConvertsIsoDateToBrazilianDottedFormat() {
+        String name = new FileNameBuilder().build(invoice("2026-05-22"), ProcessingStatus.OK);
+
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_22.05.2026_140,00.pdf");
     }
 
     @Test
     void fileNameBuilderPlacesUnsupportedReasonBeforeDate() {
         String name = new FileNameBuilder().build(invoice(), ProcessingStatus.UNSUPPORTED);
 
-        assertThat(name).isEqualTo("NFSE_9_MODELO_NAO_SUPORTADO_20260402.pdf");
+        assertThat(name).isEqualTo("NFSE_9_MODELO_NAO_SUPORTADO_02.04.2026.pdf");
     }
 
     @Test
     void fileNameBuilderPlacesWrongCompanyReasonWithProvider() {
         String name = new FileNameBuilder().build(invoice(), ProcessingStatus.WRONG_COMPANY);
 
-        assertThat(name).isEqualTo("NFSE_9_CNPJ_INCORRETO_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402.pdf");
+        assertThat(name).isEqualTo("NFSE_9_CNPJ_INCORRETO_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026.pdf");
     }
 
     @Test
@@ -105,14 +112,41 @@ class ProcessingRulesTest {
 
         String name = new FileNameBuilder().build(invoice, ProcessingStatus.CANCELLED);
 
-        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_20260402_##CANCELADA##.pdf");
+        assertThat(name).isEqualTo("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_##CANCELADA##.pdf");
     }
 
-    private static InvoiceData invoice() {
-        return new InvoiceData(
+    @Test
+    void fileNameBuilderLimitsLongOperationalNamesForDeepWindowsFolders() {
+        InvoiceData invoice = new InvoiceData(
                 LayoutType.PORTAL_NACIONAL,
                 "9",
                 "02/04/2026",
+                "EMPRESA COM NOME EXTREMAMENTE LONGO ".repeat(8),
+                "63.216.712/0001-62",
+                "DGA ENERGIA E AUTOMACAO LTDA",
+                "25.014.360/0001-73",
+                new BigDecimal("140.00"),
+                new BigDecimal("120.00"),
+                true,
+                false
+        );
+
+        String name = new FileNameBuilder().build(invoice, ProcessingStatus.OK);
+
+        assertThat(name).hasSizeLessThanOrEqualTo(150);
+        assertThat(name).startsWith("NFSE_9_");
+        assertThat(name).endsWith("_02.04.2026_140,00_##IR_RETIDO##.pdf");
+    }
+
+    private static InvoiceData invoice() {
+        return invoice("02/04/2026");
+    }
+
+    private static InvoiceData invoice(String issueDate) {
+        return new InvoiceData(
+                LayoutType.PORTAL_NACIONAL,
+                "9",
+                issueDate,
                 "63.216.712 ERNANE FLAUZINO CAMPOS",
                 "63.216.712/0001-62",
                 "DGA ENERGIA E AUTOMACAO LTDA",

@@ -36,7 +36,7 @@ O que prova:
 - regra de retencao (valorLiquido < valorServico, campos de retencao > 0)
 - validacao de CNPJ (digito verificador)
 - logica do Ledger (anti-reprocessamento via SHA-256)
-- montagem do nome final com e sem `##RETIDO##`
+- montagem do nome final com e sem `##IR_RETIDO##`
 
 O que nao prova: extracao real de PDF, watcher, IO de arquivo.
 

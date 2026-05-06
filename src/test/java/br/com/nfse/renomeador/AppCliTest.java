@@ -19,4 +19,25 @@ class AppCliTest {
 
         assertThat(exitCode).isZero();
     }
+
+    @Test
+    void cliParsesConfigImportExcelHelp() {
+        int exitCode = new CommandLine(new App.Cli()).execute("config", "import-excel", "--help");
+
+        assertThat(exitCode).isZero();
+    }
+
+    @Test
+    void cliParsesConfigPrepareExcelHelp() {
+        int exitCode = new CommandLine(new App.Cli()).execute("config", "preparar-planilha", "--help");
+
+        assertThat(exitCode).isZero();
+    }
+
+    @Test
+    void cliParsesConfigCheckHelp() {
+        int exitCode = new CommandLine(new App.Cli()).execute("config", "check", "--help");
+
+        assertThat(exitCode).isZero();
+    }
 }

@@ -31,6 +31,12 @@ public final class ProcessingLedger {
 
     public boolean hasProcessed(String companyId, Path sourcePath, long size, Instant lastModified, String sha256) throws IOException {
         for (LedgerEntry entry : entries()) {
+            if (!entry.companyId().equals(companyId)) {
+                continue;
+            }
+            if (!sha256.isBlank() && entry.sha256().equals(sha256)) {
+                return true;
+            }
             if (entry.companyId().equals(companyId)
                     && entry.sourcePath().equals(sourcePath)
                     && entry.size() == size

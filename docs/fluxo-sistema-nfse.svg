@@ -1,0 +1,318 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1380" viewBox="0 0 1800 1380" role="img" aria-labelledby="title desc">
+  <title id="title">Fluxo ilustrado do Renomeador NFS-e</title>
+  <desc id="desc">Infografico operacional mostrando como o usuario preenche a planilha, importa o YAML (arquivo de configuracao), roda batch (uma passada) ou watch (monitoramento continuo em espera) e como o sistema valida CNPJ do tomador, roteia, renomeia e envia PDFs para processados ou revisao.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="0.45" stop-color="#fff7e8"/>
+      <stop offset="1" stop-color="#f2fff6"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e88ff"/>
+      <stop offset="1" stop-color="#00c2ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00b86b"/>
+      <stop offset="1" stop-color="#8bdc3c"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a00"/>
+      <stop offset="1" stop-color="#ffd23f"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3d81"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d5dfc"/>
+      <stop offset="1" stop-color="#17c3b2"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#123" flood-opacity="0.18"/>
+    </filter>
+    <filter id="smallShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#123" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1266d6"/>
+    </marker>
+    <marker id="arrowDark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#263238"/>
+    </marker>
+    <style>
+      .title{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:44px;fill:#17202a}
+      .subtitle{font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:21px;fill:#34495e}
+      .panel-title{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:27px;fill:#12213a}
+      .step{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:18px;fill:#fff}
+      .label{font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:18px;fill:#16233a}
+      .text{font-family:Arial,Helvetica,sans-serif;font-weight:600;font-size:15px;fill:#263238}
+      .small{font-family:Arial,Helvetica,sans-serif;font-weight:600;font-size:13px;fill:#37474f}
+      .tiny{font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:11px;fill:#455a64}
+      .white{fill:#fff}
+      .card{fill:#fff;stroke:#182230;stroke-width:3;filter:url(#smallShadow)}
+      .comic{fill:#fff;stroke:#182230;stroke-width:4;filter:url(#shadow)}
+      .dash{stroke-dasharray:10 8}
+      .arrow{fill:none;stroke:#1266d6;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrowBlue)}
+      .arrowDark{fill:none;stroke:#263238;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrowDark)}
+      .thin{fill:none;stroke:#607d8b;stroke-width:2}
+      .ok{fill:#e7fff2;stroke:#00a35f}
+      .warn{fill:#fff8df;stroke:#ff9f1c}
+      .bad{fill:#fff0f4;stroke:#e91e63}
+      .info{fill:#eef7ff;stroke:#2684ff}
+      .folderTab{fill:#ffd166;stroke:#182230;stroke-width:3}
+      .folderBody{fill:#ffe8a3;stroke:#182230;stroke-width:3}
+      .speech{fill:#fff;stroke:#182230;stroke-width:3}
+      .halftone{opacity:.16}
+    </style>
+    <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="2" fill="#17202a"/>
+    </pattern>
+  </defs>
+
+  <rect width="1800" height="1380" fill="url(#bg)"/>
+  <rect class="halftone" x="0" y="0" width="1800" height="1380" fill="url(#dots)"/>
+
+  <g transform="translate(62 42)">
+    <path d="M0 8 L1240 8 Q1270 8 1290 30 L1360 110 L0 110 Z" fill="#ffffff" stroke="#17202a" stroke-width="5" filter="url(#shadow)"/>
+    <text class="title" x="34" y="55">Renomeador de NFS-e: guia operacional</text>
+    <text class="subtitle" x="36" y="88">Da planilha REST (pasta do cliente) ate processados, revisar, originais, logs e ledger (historico)</text>
+    <g transform="translate(1430 4)">
+      <circle cx="55" cy="55" r="52" fill="url(#purple)" stroke="#17202a" stroke-width="4"/>
+      <path d="M35 34 h42 a12 12 0 0 1 12 12 v34 a12 12 0 0 1 -12 12 H35 a12 12 0 0 1 -12 -12 V46 a12 12 0 0 1 12 -12Z" fill="#fff"/>
+      <path d="M40 45 h32 M40 58 h42 M40 71 h28" stroke="#17202a" stroke-width="5" stroke-linecap="round"/>
+      <text class="step" x="28" y="118">V1.1</text>
+    </g>
+  </g>
+
+  <!-- Panel 1: Usuario e planilha -->
+  <g transform="translate(60 185)">
+    <rect class="comic" x="0" y="0" width="520" height="360" rx="24"/>
+    <rect x="0" y="0" width="520" height="58" rx="22" fill="url(#blue)" stroke="#17202a" stroke-width="4"/>
+    <text class="step" x="24" y="38">1. Usuario prepara a planilha</text>
+
+    <g transform="translate(26 88)">
+      <circle cx="48" cy="34" r="28" fill="#ffce9f" stroke="#17202a" stroke-width="3"/>
+      <path d="M22 100 q25 -48 58 0 v50 H22Z" fill="#1e88ff" stroke="#17202a" stroke-width="3"/>
+      <path d="M36 32 q12 10 26 0" fill="none" stroke="#17202a" stroke-width="3"/>
+      <circle cx="38" cy="27" r="3" fill="#17202a"/>
+      <circle cx="58" cy="27" r="3" fill="#17202a"/>
+      <path d="M18 16 q28 -30 64 0 q-22 0 -34 4 q-14 -3 -30 -4Z" fill="#2d3436" stroke="#17202a" stroke-width="3"/>
+    </g>
+
+    <g transform="translate(128 82)">
+      <rect x="0" y="0" width="350" height="190" rx="10" fill="#f7fbff" stroke="#17202a" stroke-width="3"/>
+      <rect x="0" y="0" width="350" height="38" rx="10" fill="#dff0ff" stroke="#17202a" stroke-width="3"/>
+      <text class="label" x="14" y="26">Dashboard Fiscal</text>
+      <rect x="14" y="55" width="322" height="36" fill="#fff" stroke="#90a4ae" stroke-width="2"/>
+      <rect x="14" y="91" width="322" height="36" fill="#fff" stroke="#90a4ae" stroke-width="2"/>
+      <rect x="14" y="127" width="322" height="36" fill="#fff" stroke="#90a4ae" stroke-width="2"/>
+      <line x1="120" y1="55" x2="120" y2="163" stroke="#90a4ae" stroke-width="2"/>
+      <line x1="206" y1="55" x2="206" y2="163" stroke="#90a4ae" stroke-width="2"/>
+      <text class="tiny" x="25" y="78">CLIENTE</text>
+      <text class="tiny" x="136" y="78">CNPJ TOMADOR</text>
+      <text class="tiny" x="219" y="78">CAMINHO REST</text>
+      <text class="small" x="25" y="114">Cliente A</text>
+      <text class="small" x="136" y="114">12.345...</text>
+      <text class="small" x="219" y="114">D:/REST/A</text>
+      <text class="small" x="25" y="150">Cliente B</text>
+      <text class="small" x="136" y="150">25.014...</text>
+      <text class="small" x="219" y="150">em branco</text>
+    </g>
+
+    <path d="M102 100 C124 72 142 64 170 66" class="arrowDark"/>
+    <g transform="translate(32 270)">
+      <path class="speech" d="M0 0 H455 Q475 0 475 20 V63 Q475 83 455 83 H36 L16 106 L20 83 H0 Q-20 83 -20 63 V20 Q-20 0 0 0Z"/>
+      <text class="text" x="16" y="26">Preenche CAMINHO REST (pasta do cliente) nos clientes ativos.</text>
+      <text class="text" x="16" y="50">Linha com CNPJ do tomador valido e REST vazio vira conhecido,</text>
+      <text class="text" x="16" y="72">mas desabilitado para monitoramento.</text>
+    </g>
+  </g>
+
+  <!-- Panel 2: importacao e check -->
+  <g transform="translate(640 185)">
+    <rect class="comic" x="0" y="0" width="510" height="360" rx="24"/>
+    <rect x="0" y="0" width="510" height="58" rx="22" fill="url(#orange)" stroke="#17202a" stroke-width="4"/>
+    <text class="step" x="24" y="38">2. Importa e valida configuracao</text>
+
+    <g transform="translate(40 92)">
+      <rect class="card info" x="0" y="0" width="190" height="86" rx="16"/>
+      <text class="label" x="18" y="30">import-excel</text>
+      <text class="small" x="18" y="55">PLANILHA_FISCAL_MODELO</text>
+      <text class="small" x="18" y="73">gera YAML (configuracao)</text>
+    </g>
+    <path class="arrow" d="M245 136 H310"/>
+    <g transform="translate(320 92)">
+      <rect class="card ok" x="0" y="0" width="150" height="86" rx="16"/>
+      <text class="label" x="22" y="32">config check</text>
+      <text class="small" x="22" y="57">CNPJ do tomador valido</text>
+      <text class="small" x="22" y="75">pastas OK</text>
+    </g>
+
+    <g transform="translate(50 210)">
+      <rect class="card" x="0" y="0" width="410" height="94" rx="16" fill="#fffdf5"/>
+      <text class="label" x="20" y="28">O YAML (configuracao) vira a regra do sistema</text>
+      <text class="small" x="20" y="53">- empresa habilitada = REST preenchido</text>
+      <text class="small" x="20" y="73">- sem REST = conhecida, mas nao monitorada</text>
+    </g>
+  </g>
+
+  <!-- Panel 3: modos -->
+  <g transform="translate(1210 185)">
+    <rect class="comic" x="0" y="0" width="530" height="360" rx="24"/>
+    <rect x="0" y="0" width="530" height="58" rx="22" fill="url(#green)" stroke="#17202a" stroke-width="4"/>
+    <text class="step" x="24" y="38">3. Escolhe como rodar</text>
+
+    <g transform="translate(40 94)">
+      <rect class="card info" x="0" y="0" width="205" height="116" rx="18"/>
+      <text class="label" x="18" y="30">batch (uma vez)</text>
+      <text class="small" x="18" y="56">Passada unica nas</text>
+      <text class="small" x="18" y="76">pastas ativas.</text>
+      <text class="small" x="18" y="98">--homologacao preserva entrada.</text>
+    </g>
+    <g transform="translate(285 94)">
+      <rect class="card ok" x="0" y="0" width="205" height="116" rx="18"/>
+      <text class="label" x="18" y="30">watch (vigia)</text>
+      <text class="small" x="18" y="56">Fica em espera.</text>
+      <text class="small" x="18" y="76">Acorda quando PDF entra.</text>
+      <text class="small" x="18" y="98">Se perder evento, revarre.</text>
+    </g>
+    <path class="arrow" d="M242 152 H282"/>
+    <g transform="translate(70 250)">
+      <path class="speech" d="M0 0 H370 Q390 0 390 20 V58 Q390 78 370 78 H215 L195 103 L200 78 H0 Q-20 78 -20 58 V20 Q-20 0 0 0Z"/>
+      <text class="text" x="16" y="27">Os dois modos usam o mesmo pipeline (esteira de etapas).</text>
+      <text class="text" x="16" y="53">Nao duplica: ledger (historico) + hash (assinatura do arquivo).</text>
+    </g>
+  </g>
+
+  <!-- Big pipeline -->
+  <g transform="translate(60 605)">
+    <rect class="comic" x="0" y="0" width="1680" height="610" rx="28"/>
+    <rect x="0" y="0" width="1680" height="62" rx="24" fill="url(#pink)" stroke="#17202a" stroke-width="4"/>
+    <text class="step" x="28" y="40">4. O que acontece com cada PDF dentro do sistema</text>
+
+    <!-- Input folder and safety -->
+    <g transform="translate(35 90)">
+      <path class="folderTab" d="M20 10 H145 L170 35 H300 V78 H20Z"/>
+      <path class="folderBody" d="M20 35 H330 Q350 35 350 55 V155 Q350 175 330 175 H20 Q0 175 0 155 V55 Q0 35 20 35Z"/>
+      <text class="label" x="32" y="76">Pasta REST</text>
+      <text class="small" x="32" y="104">Somente PDF novo</text>
+      <text class="small" x="32" y="128">por cliente habilitado</text>
+      <text class="small" x="32" y="152">outros arquivos ficam parados</text>
+    </g>
+    <path class="arrow" d="M410 177 H500"/>
+
+    <g transform="translate(520 92)">
+      <rect class="card info" x="0" y="0" width="250" height="172" rx="18"/>
+      <text class="label" x="18" y="30">Seguranca antes de ler</text>
+      <text class="small" x="18" y="60">1 espera estabilizar (terminar copia)</text>
+      <text class="small" x="18" y="84">2 calcula SHA-256 (identidade)</text>
+      <text class="small" x="18" y="108">3 consulta ledger (historico)</text>
+      <text class="small" x="18" y="132">4 preserva original (copia de seguranca)</text>
+      <text class="tiny" x="18" y="155">originais/ guarda copia do PDF recebido</text>
+    </g>
+    <path class="arrow" d="M785 177 H875"/>
+
+    <g transform="translate(895 92)">
+      <rect class="card" x="0" y="0" width="300" height="172" rx="18" fill="#f7fff7"/>
+      <text class="label" x="18" y="30">Le e separa</text>
+      <text class="small" x="18" y="60">PDFBox (le texto do PDF) por pagina</text>
+      <text class="small" x="18" y="84">PDF agrupado pode virar notas separadas</text>
+      <text class="small" x="18" y="108">Detector classifica layout (modelo):</text>
+      <text class="tiny" x="32" y="132">Portal Nacional DANFSe v1.0 (padrao nacional)</text>
+      <text class="tiny" x="32" y="151">ABRASF / ISSNet (padrao municipal)</text>
+    </g>
+    <path class="arrow" d="M1212 177 H1302"/>
+
+    <g transform="translate(1320 92)">
+      <rect class="card warn" x="0" y="0" width="300" height="172" rx="18"/>
+      <text class="label" x="18" y="30">Extrai e decide</text>
+      <text class="small" x="18" y="58">numero, data, prestador, tomador</text>
+      <text class="small" x="18" y="82">valor servico, valor liquido</text>
+      <text class="small" x="18" y="106">CNPJ tomador (cliente da NF) x planilha</text>
+      <text class="small" x="18" y="130">cancelamento e retencao (imposto retido)</text>
+      <text class="tiny" x="18" y="153">qualquer incerteza vai para revisar/</text>
+    </g>
+
+    <!-- Outcomes row -->
+    <path class="arrowDark" d="M1470 272 V330"/>
+    <g transform="translate(40 345)">
+      <rect class="card ok" x="0" y="0" width="245" height="180" rx="18"/>
+      <text class="label" x="18" y="30">OK automatico</text>
+      <text class="small" x="18" y="58">layout homologado (modelo aceito)</text>
+      <text class="small" x="18" y="80">CNPJ do tomador correto</text>
+      <text class="small" x="18" y="102">campos obrigatorios lidos</text>
+      <text class="small" x="18" y="130">destino: processados/ (aprovadas)</text>
+      <text class="tiny" x="18" y="154">nome limitado a 150 caracteres</text>
+    </g>
+
+    <g transform="translate(315 345)">
+      <rect class="card ok" x="0" y="0" width="245" height="180" rx="18"/>
+      <text class="label" x="18" y="30">Retencao (imposto retido)</text>
+      <text class="small" x="18" y="58">liquido menor que servico</text>
+      <text class="small" x="18" y="80">ou retencao explicita &gt; 0</text>
+      <text class="small" x="18" y="108">destino: processados/ (aprovadas)</text>
+      <text class="tiny" x="18" y="135">nome recebe:</text>
+      <text class="label" x="18" y="160">##IR_RETIDO##</text>
+    </g>
+
+    <g transform="translate(590 345)">
+      <rect class="card bad" x="0" y="0" width="245" height="180" rx="18"/>
+      <text class="label" x="18" y="30">Cancelada</text>
+      <text class="small" x="18" y="58">marcador confiavel de</text>
+      <text class="small" x="18" y="80">nota cancelada</text>
+      <text class="small" x="18" y="110">destino:</text>
+      <text class="label" x="18" y="135">revisar/canceladas/</text>
+      <text class="tiny" x="18" y="160">nome recebe ##CANCELADA##</text>
+    </g>
+
+    <g transform="translate(865 345)">
+      <rect class="card warn" x="0" y="0" width="260" height="180" rx="18"/>
+      <text class="label" x="18" y="30">Pasta REST errada</text>
+      <text class="small" x="18" y="58">CNPJ do tomador pertence</text>
+      <text class="small" x="18" y="80">a outro cliente com REST ativo</text>
+      <text class="small" x="18" y="110">processa pelo cliente certo</text>
+      <text class="small" x="18" y="132">e envia para as subpastas</text>
+      <text class="tiny" x="18" y="158">processados/revisar da REST correta</text>
+    </g>
+
+    <g transform="translate(1155 345)">
+      <rect class="card warn" x="0" y="0" width="245" height="180" rx="18"/>
+      <text class="label" x="18" y="30">Cliente conhecido sem REST</text>
+      <text class="small" x="18" y="58">CNPJ do tomador existe,</text>
+      <text class="small" x="18" y="80">mas CAMINHO REST esta vazio</text>
+      <text class="small" x="18" y="110">destino: revisar/ (conferencia)</text>
+      <text class="tiny" x="18" y="136">NF_PASTA_INCORRETA_</text>
+      <text class="tiny" x="18" y="156">CNPJ_NF_..._CNPJ_PASTA_...</text>
+    </g>
+
+    <g transform="translate(1430 345)">
+      <rect class="card bad" x="0" y="0" width="210" height="180" rx="18"/>
+      <text class="label" x="18" y="30">Revisao manual</text>
+      <text class="small" x="18" y="58">sem texto</text>
+      <text class="small" x="18" y="80">modelo nao suportado (desconhecido)</text>
+      <text class="small" x="18" y="102">CNPJ do tomador desconhecido</text>
+      <text class="small" x="18" y="124">dados ausentes (faltou informacao)</text>
+      <text class="small" x="18" y="146">conflito de retencao (duvida fiscal)</text>
+      <text class="tiny" x="18" y="166">destino: revisar/</text>
+    </g>
+  </g>
+
+  <!-- Logs strip -->
+  <g transform="translate(92 1225)">
+    <rect x="0" y="-28" width="1615" height="48" rx="20" fill="#17202a" opacity=".95"/>
+    <text class="step" x="28" y="3">Sempre registra: logs (relatorios), duracaoMs (tempo gasto) e ledger (historico) para nao reprocessar o mesmo PDF</text>
+  </g>
+
+  <g transform="translate(92 1290)">
+    <rect x="0" y="-28" width="1615" height="86" rx="20" fill="#ffffff" stroke="#17202a" stroke-width="3" filter="url(#smallShadow)"/>
+    <text class="label" x="28" y="-1">Premissas de operacao</text>
+    <text class="small" x="28" y="25">REST = pasta monitorada do cliente. CNPJ da planilha = CNPJ do tomador da NFS-e. Prestador aparece no nome, mas nao decide a pasta.</text>
+    <text class="small" x="28" y="47">Duplicidade: se Portal Nacional e ABRASF tiverem os mesmos dados fiscais, Portal Nacional fica como principal.</text>
+    <text class="small" x="28" y="69">Caminho grande: o sistema encurta o nome final, mas o Windows/rede tambem precisam aceitar caminhos longos.</text>
+  </g>
+
+  <!-- Connector arrows between top panels and pipeline -->
+  <path class="arrow dash" d="M320 548 C360 580 360 585 360 605"/>
+  <path class="arrow dash" d="M900 548 C910 580 910 585 910 605"/>
+  <path class="arrow dash" d="M1470 548 C1450 580 1450 585 1450 605"/>
+</svg>

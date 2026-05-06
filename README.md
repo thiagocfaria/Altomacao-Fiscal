@@ -1,6 +1,17 @@
 # Renomeador NFS-e
 
-Projeto inicial para extrair dados de PDFs textuais de NFS-e, classificar layouts homologados e preparar a decisao de renomeacao/revisao.
+Automacao Java para receber PDFs textuais de NFS-e, separar notas agrupadas, validar o CNPJ do tomador, identificar retencao/cancelamento, renomear arquivos e organizar cada nota nas pastas operacionais da empresa.
+
+O sistema foi desenhado para rodar fora do repositorio, apontando para as pastas reais cadastradas na planilha fiscal. Casos seguros vao para `processados/`; casos duvidosos ou fora do padrao vao para `revisar/`.
+
+## Sumario
+
+- [Estado atual](#estado-atual)
+- [Instalacao e dependencias](#instalacao-e-dependencias)
+- [Configuracao pela planilha](#configuracao-pela-planilha)
+- [Uso operacional](#uso-operacional)
+- [Compatibilidade com caminhos grandes](#compatibilidade-com-caminhos-grandes)
+- [Validacao tecnica](#validacao-tecnica)
 
 ## Estado atual
 
@@ -27,29 +38,98 @@ Implementado:
 - ledger persistente basico;
 - guarda de estabilidade basica para arquivo legivel;
 - preservacao do original com tratamento de colisao;
-- jar Maven empacotado com dependencias.
+- jar Maven empacotado com dependencias;
 - processamento `batch` com scanner de entrada, destino, ledger e logs;
 - CLI operacional com Picocli;
-- modo `watch` com `WatchService`;
-- modo de homologacao para preservar PDFs de entrada.
+- modo `watch` com `WatchService`, varredura inicial e revarredura em overflow;
+- modo de homologacao para preservar PDFs de entrada;
+- importacao de cadastro por planilha Excel `.xlsx`/`.xlsm`;
+- preparacao da planilha `PLANILHA_FISCAL_MODELO.xlsm` para preencher `CAMINHO REST`;
+- validacao tecnica de `empresas.yaml`;
+- roteamento de nota encontrada na pasta REST errada para a pasta REST correta quando o CNPJ do tomador da nota for conhecido;
+- preferencia por Portal Nacional quando existir ABRASF duplicada com os mesmos dados fiscais;
+- log operacional com `duracaoMs` por arquivo.
 
-Validado nesta maquina em 30/04/2026:
+Validado nesta maquina em 05/05/2026:
 
 - JDK 17 portatil em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`;
 - Maven 3.9.9 portatil em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`;
-- `mvn test`: 51 testes, 0 falhas;
-- `mvn verify -Pintegration`: sucesso;
+- `mvn test`: 81 testes, 0 falhas;
+- `mvn verify -Pintegration`: 81 testes, 0 falhas;
 - `mvn package`: sucesso e jar gerado em `target/renomeador-nfse-0.1.0-SNAPSHOT.jar`;
 - `java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar --help`: sucesso;
+- `PLANILHA_FISCAL_MODELO.xlsm` importada com 87 empresas e configuracao validada;
 - homologacao controlada em pasta temporaria com os PDFs modelo: 16 notas/saidas processadas, 7 OK, 1 cancelada, 8 revisao, 0 erros;
 - reexecucao do mesmo lote: 0 processados, 10 ignorados por ledger, 0 erros.
 
 Ainda pendente para liberar operacao:
 
-- homologacao manual em pasta real da empresa;
-- `.bat` opcional para Windows apos validar o jar.
+- preencher `CAMINHO REST` na planilha modelo para os clientes que devem rodar;
+- importar a planilha modelo para o `empresas.yaml` definitivo;
+- homologacao manual em pasta real da empresa.
 
-## Verificacao
+## Instalacao e dependencias
+
+### Requisitos da maquina
+
+- Windows 10/11 ou Windows Server com permissao de leitura/escrita nas pastas REST.
+- Java 17 instalado ou portatil.
+- Maven 3.9+ apenas para compilar/testar o projeto. Para rodar o `.jar` pronto, Maven nao e necessario.
+- Acesso de escrita nas subpastas que o sistema cria ou usa: `processados/`, `revisar/`, `originais/` e `logs/`.
+- PDFs textuais. PDF escaneado/imagem sem texto selecionavel vai para revisao; a V1 nao usa OCR.
+
+### Dependencias Java do projeto
+
+As dependencias ficam declaradas no `pom.xml` e entram no `.jar` final pelo Maven Shade:
+
+| Dependencia | Uso |
+|---|---|
+| Java 17 | execucao da aplicacao |
+| Apache PDFBox | leitura e separacao de PDFs |
+| Apache POI | leitura/preparacao de planilhas `.xlsx`/`.xlsm` |
+| Jackson YAML | leitura e geracao de `empresas.yaml` |
+| Picocli | comandos `batch`, `watch` e `config` |
+| SLF4J/Logback | logs tecnicos |
+| JUnit 5 e AssertJ | testes automatizados |
+
+### Instalacao recomendada no Windows
+
+1. Coloque o projeto em uma pasta tecnica, por exemplo:
+
+```text
+C:\NFSE\renomeador-nfse
+```
+
+2. Garanta o Java 17:
+
+```powershell
+java -version
+```
+
+3. Se precisar compilar na maquina:
+
+```powershell
+mvn test
+mvn package
+```
+
+4. Confirme o `.jar`:
+
+```powershell
+java -jar target\renomeador-nfse-0.1.0-SNAPSHOT.jar --help
+```
+
+5. Use os scripts de apoio quando estiver no Windows:
+
+```bat
+scripts\windows\preparar-planilha.bat C:\entrada\PLANILHA_ORIGINAL.xlsm C:\saida\PLANILHA_FISCAL_MODELO.xlsm
+scripts\windows\importar-planilha.bat C:\saida\PLANILHA_FISCAL_MODELO.xlsm C:\NFSE\empresas.yaml
+scripts\windows\validar-config.bat C:\NFSE\empresas.yaml
+scripts\windows\rodar-batch-homologacao.bat C:\NFSE\empresas.yaml
+scripts\windows\rodar-watch.bat C:\NFSE\empresas.yaml
+```
+
+## Validacao tecnica
 
 Instale ou aponte `JAVA_HOME` para JDK 17 e garanta `mvn` no PATH. Nesta maquina, foi usada instalacao portatil:
 
@@ -75,11 +155,66 @@ mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
 mvn -Dmaven.repo.local=/tmp/m2-nfse package
 ```
 
-## Configuracao
+## Configuracao pela planilha
 
 Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codigo nao deve depender de PDFs ou pastas operacionais dentro do repositorio.
 
 Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for a pasta de PDFs modelo do projeto (`NF MODELO ABRASP E PORTAL NACIONAL/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
+
+A planilha de trabalho do projeto e `PLANILHA_FISCAL_MODELO.xlsm`. Ela preserva o VBA da planilha original, aplica identidade visual PROTONS, deixa filtro e cabecalho prontos, renomeia a coluna de cidade para `CIDADE`, formata `CNPJ` e `CAMINHO REST` como texto, marca CNPJs invalidos em amarelo para revisao e mantem 30 linhas extras prontas abaixo da ultima empresa cadastrada.
+
+Mantenha apenas essa planilha modelo como planilha operacional local do projeto. A planilha bruta/original serve somente como entrada para recriar o modelo quando chegar uma versao nova; planilhas fiscais com dados de clientes nao devem ser publicadas no GitHub.
+
+O sistema importa a planilha para `empresas.yaml`; o `batch` e o `watch` rodam somente sobre esse YAML validado.
+
+Cabecalhos obrigatorios:
+
+- `empresa`
+- `cnpj`
+- `caminho`
+
+Na planilha `Dashboard Fiscal`, o sistema tambem entende o cabecalho da linha 2 e usa:
+
+- `CLIENTE` como nome da empresa;
+- `CIDADE` como cidade da empresa;
+- `CNPJ` como CNPJ esperado do tomador;
+- `CAMINHO REST` como pasta direta monitorada.
+
+O campo `CNPJ` da planilha sempre representa o CNPJ esperado do tomador da NFS-e. O CNPJ do prestador tambem aparece dentro da nota, mas ele nao decide qual pasta REST deve receber o PDF.
+
+O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST e tratado como a pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas `processados/`, `revisar/`, `originais/` e `logs/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento.
+
+### Macro de duplo clique da planilha
+
+A `PLANILHA_FISCAL_MODELO.xlsm` deve ser aberta no Excel para Windows com macros habilitadas. O arquivo preserva o projeto VBA da planilha original e contem evento `Worksheet_BeforeDoubleClick` com seletor de pasta (`FileDialogFolderPicker`) para preencher o caminho.
+
+Se o duplo clique nao abrir o Explorador de pastas:
+
+- confirme que o arquivo esta como `.xlsm`, nao `.xlsx`;
+- clique em `Habilitar Conteudo` quando o Excel pedir;
+- se o arquivo veio de download, abra `Propriedades` no Windows e marque `Desbloquear`;
+- se estiver em pasta de rede, adicione a pasta como `Local Confiavel` no Excel;
+- no Excel, confira se macros nao estao bloqueadas em `Arquivo > Opcoes > Central de Confiabilidade > Configuracoes de Macro`.
+
+Mesmo sem macro, o sistema continua funcionando se o caminho for colado manualmente na coluna `CAMINHO REST`.
+
+Se receber uma nova planilha bruta de fora, gere novamente a copia de trabalho:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:/caminho/PLANILHA_FISCAL_ORIGINAL.xlsm --saida PLANILHA_FISCAL_MODELO.xlsm
+```
+
+Importar a planilha de trabalho:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha PLANILHA_FISCAL_MODELO.xlsm --saida C:/caminho/empresas.yaml
+```
+
+Validar configuracao:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config check --config C:/caminho/empresas.yaml
+```
 
 ## Uso operacional
 
@@ -89,6 +224,7 @@ Ajuda:
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar --help
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --help
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --help
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config --help
 ```
 
 Execucao `batch`:
@@ -115,12 +251,49 @@ Modo continuo:
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config C:/caminho/empresas.yaml
 ```
 
+No modo `watch`, o Java fica aberto aguardando evento da pasta. Ele nao fica processando PDFs continuamente; trabalha na varredura inicial, quando entra arquivo novo, quando um PDF termina de copiar/alterar ou quando o sistema operacional avisa que precisa revarrer a pasta.
+
 Destinos por status:
 
 - `OK`: `processados/`;
 - cancelada: `revisar/canceladas/`;
-- CNPJ divergente, sem texto, modelo nao suportado, dados ausentes, conflito de retencao ou erro tecnico: `revisar/`.
+- duplicada ABRASF com Portal Nacional equivalente: nao gera PDF operacional duplicado; Portal Nacional fica como principal;
+- nota em pasta errada com CNPJ do tomador encontrado e REST preenchido: processada pelo cadastro correto e enviada para as subpastas do caminho REST correto;
+- nota em pasta errada com CNPJ do tomador conhecido mas sem REST: `revisar/` com prefixo `NF_PASTA_INCORRETA_`;
+- CNPJ divergente desconhecido, sem texto, modelo nao suportado, dados ausentes, conflito de retencao ou erro tecnico: `revisar/`.
 
-## Observacao de auditoria do plano
+### Duplicidade Portal Nacional x ABRASF
 
-O plano fala em validar `NotasPdf.pdf` gerando 6 notas se a amostra realmente tiver 6. A amostra atual tem 7 paginas/notas, conforme `pdfinfo`, e os testes foram escritos para 7.
+Se a mesma NFS-e chegar em dois modelos, Portal Nacional e ABRASF/ISSNet, o sistema usa o Portal Nacional como versao principal.
+
+A ABRASF so e descartada automaticamente quando todos estes campos extraidos forem iguais:
+
+- numero da nota;
+- CNPJ do prestador;
+- nome do prestador;
+- CNPJ do tomador;
+- data de emissao;
+- valor do servico;
+- valor liquido.
+
+O horario de emissao nao entra nessa comparacao, porque pode variar entre modelos. Se algum campo fiscal for diferente, os dois PDFs sao mantidos para conferencia. O PDF recebido continua preservado em `originais/`; o descarte remove a duplicidade operacional da entrada ou de `processados/`.
+
+## Compatibilidade com caminhos grandes
+
+O codigo usa `java.nio.file.Path`, entao nao existe um limite artificial criado pela aplicacao para o tamanho do caminho. Mesmo assim, no Windows o limite real depende da configuracao do sistema operacional, do compartilhamento de rede e do tamanho final do caminho completo:
+
+```text
+pasta REST + subpasta de destino + nome final do PDF
+```
+
+Para reduzir risco em pastas profundas, o sistema limita o nome operacional gerado para ate 150 caracteres, preservando as partes mais importantes: numero da nota, data, valor e marcadores como `##IR_RETIDO##` e `##CANCELADA##`.
+
+Recomendacoes para implantacao:
+
+- preferir uma raiz curta, por exemplo `D:\REST\Cliente` ou `C:\NFSE\REST\Cliente`;
+- evitar caminhos com muitas subpastas antes da pasta REST;
+- manter nomes de compartilhamento de rede curtos;
+- habilitar suporte a caminhos longos no Windows quando a empresa usa estruturas muito profundas;
+- validar com `config check` e fazer um `batch --homologacao` antes de deixar o `watch` ligado.
+
+Se a empresa usa caminho extremamente grande, o risco principal nao e a regra fiscal do sistema, mas o Windows negar criacao/movimentacao do arquivo por limite do proprio sistema ou da rede. Nesse caso, o caminho deve ser encurtado ou o Windows deve estar configurado para aceitar caminhos longos.

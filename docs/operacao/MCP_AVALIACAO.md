@@ -68,6 +68,25 @@ Use sempre as mesmas 4 tarefas de referencia:
 
 ## Registro de avaliacoes
 
+### Apache POI `poi-ooxml` (2026-05-05)
+
+**Tipo:** dependencia Maven da aplicacao Java
+**Escopo:** projeto
+**Uso previsto:** ler planilhas `.xlsx` e `.xlsm` como fonte de cadastro de empresas, sem executar macros, para gerar `empresas.yaml` validado.
+
+**Checklist de seguranca:**
+- Le dados locais: sim, somente a planilha informada via CLI.
+- Usa rede: nao em runtime; Maven usa rede apenas para baixar dependencia no build.
+- Onde grava indice/cache/log: nao grava indice proprio; o importador grava apenas o YAML de saida escolhido pelo operador.
+- Toca credencial, segredo, CNPJ de empresa: sim, le CNPJ e caminhos de pastas da planilha; logs nao devem despejar conteudo integral da planilha.
+- Como desligar: remover comandos de importacao Excel e dependencia `org.apache.poi:poi-ooxml` do `pom.xml`.
+- Como limpar o que criou: apagar YAML gerado pelo operador.
+- Como voltar ao estado anterior: usar `empresas.yaml` manual existente; `batch` e `watch` continuam lendo YAML.
+
+**Decisao:** aprovado para V1.1, porque a planilha nao fica no caminho quente do watcher. O Excel e importado para YAML validado; depois o watcher roda somente sobre a configuracao estavel.
+
+**Observacao de logging:** `org.apache.logging.log4j:log4j-to-slf4j` foi incluido na mesma decisao para rotear logs internos do Apache POI ao Logback ja usado pelo projeto, sem adicionar novo destino de log.
+
 ### jdtls-lsp@claude-plugins-official (2026-04-30)
 
 **Tipo:** plugin oficial do Claude Code
@@ -90,8 +109,8 @@ Use sempre as mesmas 4 tarefas de referencia:
 - Habilitado neste projeto: sim (`.claude/settings.json`)
 - Desativado globalmente: sim (settings do usuario tem `"jdtls-lsp": false`)
 
-**Bake-off:** pendente — sera executado quando o codigo Java existir.
-**Proximo gatilho de reavaliacao:** primeira sessao com arquivo `.java` real.
+**Bake-off:** concluido para o uso atual — projeto Java indexado e consultas de arquitetura/codigo disponiveis via MCP.
+**Proximo gatilho de reavaliacao:** mudanca relevante de arquitetura, troca de versao do jdtls ou falha recorrente do LSP/MCP.
 
 ---
 

@@ -99,7 +99,7 @@ OU
 IRRF > 0 OU INSS > 0 OU PIS > 0 OU COFINS > 0 OU CSLL > 0 OU Outras Retencoes > 0
 ```
 
-Marcador no nome quando retida: `##RETIDO##`
+Marcador no nome quando retida: `##IR_RETIDO##`
 Marcador quando cancelada: `##CANCELADA##` + pasta `revisar/canceladas/`
 
 ---
@@ -121,14 +121,14 @@ Marcador quando cancelada: `##CANCELADA##` + pasta `revisar/canceladas/`
 ## Formato do nome de arquivo final
 
 ```
-NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valor>[##RETIDO##].pdf
+NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valor>[##IR_RETIDO##].pdf
 ```
 
 Exemplos:
 ```
 NFSE_5_KELLE_EVANETE_LEMES_DE_ALMEIDA_20260417_256,50.pdf
 NFSE_55034_UMA_MEDICINA_E_SEGURANCA_DO_TRABALHO_LTDA_20260305_114,00.pdf
-NFSE_346928_UNIMED_ANAPOLIS_20260302_1288,52##RETIDO##.pdf   (se retida)
+NFSE_346928_UNIMED_ANAPOLIS_20260302_1288,52##IR_RETIDO##.pdf   (se retida)
 MODELO_NAO_SUPORTADO_<sha8>_<dataChegada>.pdf
 ```
 

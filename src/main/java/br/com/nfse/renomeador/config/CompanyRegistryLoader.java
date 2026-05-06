@@ -47,10 +47,12 @@ public final class CompanyRegistryLoader {
         Path basePath = Path.of(requiredString(map, "pastaBase"));
         String monthSubfolder = optionalString(map, "subpastaMes", "{AAAA}/{MM}");
         boolean enabled = !map.containsKey("habilitada") || booleanValue(map.get("habilitada"));
+        boolean sourceOnly = booleanValue(map.get("somenteOrigem"));
         List<String> months = stringList(map.get("meses"));
         CompanyFolders folders = toFolders(map.get("pastas"));
 
-        return new CompanyConfig(id, enabled, customerTaxId, strategy, months, basePath, monthSubfolder, folders);
+        return new CompanyConfig(id, enabled, customerTaxId, strategy, months, basePath, monthSubfolder,
+                folders, sourceOnly);
     }
 
     private static CompanyFolders toFolders(Object foldersNode) {

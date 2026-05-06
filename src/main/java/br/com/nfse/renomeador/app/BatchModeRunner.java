@@ -1,5 +1,6 @@
 package br.com.nfse.renomeador.app;
 
+import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.config.ResolvedCompanyPath;
 import br.com.nfse.renomeador.pipeline.FileProcessingResult;
 import br.com.nfse.renomeador.pipeline.InputScanner;
@@ -35,7 +36,8 @@ public final class BatchModeRunner {
 
     public ProcessingSummary run(Path config, Optional<String> companyId, Optional<YearMonth> month,
                                  boolean homologation) throws IOException {
-        List<ResolvedCompanyPath> paths = companyPaths.load(config, companyId, month);
+        CompanyRouteDirectory routes = companyPaths.loadRoutes(config, companyId, month);
+        List<ResolvedCompanyPath> paths = routes.monitoredPaths();
         List<br.com.nfse.renomeador.pipeline.InputCandidate> candidates = scanner.scan(paths);
         Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath = new HashMap<>();
         ProcessingSummary overall = new ProcessingSummary();
@@ -45,10 +47,10 @@ public final class BatchModeRunner {
         }
 
         for (var candidate : candidates) {
-            List<FileProcessingResult> results = pipeline.process(candidate, homologation);
+            List<FileProcessingResult> results = pipeline.process(candidate, homologation, routes);
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(), ignored -> new ProcessingSummary());
             for (FileProcessingResult result : results) {
-                logger.record(candidate.companyPath(), result);
+                recordOperationalLogs(candidate.companyPath(), result, routes);
                 record(pathSummary, result);
                 record(overall, result);
             }
@@ -58,6 +60,18 @@ public final class BatchModeRunner {
             logger.recordSummary(entry.getKey(), entry.getValue());
         }
         return overall;
+    }
+
+    private void recordOperationalLogs(ResolvedCompanyPath sourcePath, FileProcessingResult result,
+                                       CompanyRouteDirectory routes) throws IOException {
+        logger.record(sourcePath, result);
+        if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
+            return;
+        }
+        Optional<ResolvedCompanyPath> targetPath = routes.activePathForCompanyId(result.companyId());
+        if (targetPath.isPresent() && !targetPath.orElseThrow().equals(sourcePath)) {
+            logger.record(targetPath.orElseThrow(), result);
+        }
     }
 
     private static void record(ProcessingSummary summary, FileProcessingResult result) {

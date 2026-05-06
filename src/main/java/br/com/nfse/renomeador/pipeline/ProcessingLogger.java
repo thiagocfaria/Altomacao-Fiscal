@@ -21,7 +21,7 @@ public final class ProcessingLogger {
     public void recordSummary(ResolvedCompanyPath companyPath, ProcessingSummary summary) throws IOException {
         Path log = logFile(companyPath);
         Files.createDirectories(log.getParent());
-        String line = "%s\tSUMMARY\ttotal=%d\tok=%d\trevisar=%d\tcanceladas=%d\tignorados=%d\terros=%d%n".formatted(
+        String line = "%s\tSUMMARY\ttotal=%d\tok=%d\trevisar=%d\tcanceladas=%d\tduplicadas=%d\tignorados=%d\terros=%d%n".formatted(
                 Instant.now(),
                 summary.total(),
                 summary.count(ProcessingStatus.OK),
@@ -30,6 +30,7 @@ public final class ProcessingLogger {
                         + summary.count(ProcessingStatus.MISSING_REQUIRED)
                         + summary.count(ProcessingStatus.RETENTION_CONFLICT),
                 summary.count(ProcessingStatus.CANCELLED),
+                summary.count(ProcessingStatus.DUPLICATE),
                 summary.skipped(),
                 summary.errors()
         );
@@ -45,13 +46,14 @@ public final class ProcessingLogger {
         String status = result.skipped() ? "SKIPPED" : String.valueOf(result.status());
         String destination = result.destination() == null ? "" : result.destination().toString();
         String error = result.error() == null ? "" : result.error().getClass().getSimpleName() + ": " + result.error().getMessage();
-        return "%s\t%s\t%s\t%s\t%s\t%s\t%s%n".formatted(
+        return "%s\t%s\t%s\t%s\t%s\t%s\tduracaoMs=%d\t%s%n".formatted(
                 Instant.now(),
                 result.companyId(),
                 result.source(),
                 status,
                 result.reason(),
                 destination,
+                result.durationMillis(),
                 error
         );
     }

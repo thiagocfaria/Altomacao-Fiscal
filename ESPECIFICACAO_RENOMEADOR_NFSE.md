@@ -6,15 +6,15 @@
 
 **Architecture:** a aplicacao Java ficara em um repositorio externo e sera implantada separadamente na maquina de uso. A V1 deve suportar os dois modos no mesmo binario: `watch`, para vigiar somente as pastas ativas e processar quando um arquivo novo entrar, e `batch`, para execucao manual ou por `.bat`/Agendador do Windows como rede de seguranca. A configuracao sera externa, em cadastro de empresas com CNPJ esperado do tomador, estrategia de pasta mensal e caminhos de destino; o sistema processa direto na pasta da empresa, preserva o original, evita reprocessamento com ledger persistente e manda excecoes para revisao.
 
-**Tech Stack:** Java 17, Maven, Apache PDFBox, `java.nio.file`, `WatchService`, arquivo externo de configuracao em `.yaml` lido com Jackson YAML, JUnit 5, AssertJ, SLF4J/Logback, Picocli para CLI, `.bat` opcional para modo `batch`. A V1 trabalha apenas com PDFs textuais; PDF sem texto selecionavel suficiente vai para revisao, sem OCR.
+**Tech Stack:** Java 17, Maven, Apache PDFBox, Apache POI, `java.nio.file`, `WatchService`, arquivo externo de configuracao em `.yaml` lido com Jackson YAML, JUnit 5, AssertJ, SLF4J/Logback, Picocli para CLI, `.bat` opcional para modo `batch`. A V1 trabalha apenas com PDFs textuais; PDF sem texto selecionavel suficiente vai para revisao, sem OCR.
 
 ---
 
 ## 0. Estado atual da implementacao
 
-Este documento agora esta organizado como roteiro sequencial da V1. A branch atual ja iniciou a implementacao do nucleo e deve continuar pela ordem da secao 9.
+Este documento continua como roteiro tecnico da V1. O diario operacional fica em `SITUACAO_ATUAL.md`.
 
-Status em 30/04/2026:
+Status em 05/05/2026:
 
 - [x] repositorio Git inicializado;
 - [x] projeto Java 17/Maven criado;
@@ -24,12 +24,15 @@ Status em 30/04/2026:
 - [x] validacao inicial de CNPJ, cancelamento, retencao e nomeacao criada;
 - [x] testes automatizados iniciais passando com os PDFs modelo;
 - [x] configuracao externa `empresas.yaml`;
-- [ ] processamento `batch` completo com movimentacao;
+- [x] processamento `batch` completo com movimentacao;
 - [x] ledger persistente;
 - [x] preservacao de originais;
 - [x] separacao fisica dos PDFs agrupados por pagina segura;
-- [ ] modo `watch`;
-- [ ] pacote de implantacao e homologacao operacional.
+- [x] modo `watch`;
+- [x] importacao de planilha Excel para `empresas.yaml`;
+- [x] preparacao de `PLANILHA_FISCAL_MODELO.xlsm` com visual PROTONS e 30 linhas extras para novos clientes;
+- [x] scripts Windows basicos;
+- [ ] homologacao operacional em pasta real.
 
 ## 1. Resumo simples da ideia
 
@@ -60,7 +63,7 @@ O fluxo desejado e este:
 14. ele valida se o tomador bate com o CNPJ da empresa configurada;
 15. se nao bater, marca `CNPJ INCORRETO PARA REPOSITORIO`;
 16. ele detecta se a nota esta cancelada;
-17. ele detecta se existe retencao e, quando houver, acrescenta `##RETIDO##`;
+17. ele detecta se existe retencao e, quando houver, acrescenta `##IR_RETIDO##`;
 18. ele renomeia e move para o destino correto;
 19. se houver qualquer duvida, manda para `revisar/` com motivo claro.
 
@@ -104,7 +107,7 @@ O projeto resolve isso usando o conteudo real da nota e o contexto da empresa pa
 - tratamento de `MODELO NAO SUPORTADO`;
 - tratamento de `CNPJ INCORRETO PARA REPOSITORIO`;
 - tratamento de nota cancelada com `##CANCELADA##`;
-- deteccao de retencao com `##RETIDO##`;
+- deteccao de retencao com `##IR_RETIDO##`;
 - ledger persistente para evitar reprocessamento;
 - renomeacao padronizada;
 - envio de casos duvidosos para revisao;
@@ -115,7 +118,7 @@ O projeto resolve isso usando o conteudo real da nota e o contexto da empresa pa
 - OCR para PDFs escaneados ou imagem;
 - interface grafica;
 - banco de dados relacional;
-- integracao com Excel;
+- interface manual no Excel alem da importacao/preparacao da planilha fiscal;
 - integracao com prefeitura;
 - processamento paralelo complexo entre varias empresas;
 - validacoes fiscais avancadas fora do escopo da V1;
@@ -201,6 +204,7 @@ modo watch ou batch e iniciado
 -> valida o CNPJ do tomador
 -> se divergir, marca CNPJ INCORRETO PARA REPOSITORIO e envia para revisar
 -> detecta retencao
+-> verifica duplicidade fiscal Portal Nacional x ABRASF
 -> monta o nome final
 -> move para processados/ ou revisar/
 -> registra tudo no log e no ledger
@@ -224,6 +228,7 @@ modo watch ou batch e iniciado
 - quando o layout nao corresponder a um padrao homologado, a nota deve receber status `MODELO NAO SUPORTADO`;
 - quando a nota estiver cancelada, nunca deve seguir fluxo normal de processados;
 - retencao deve ser identificada na V1 e refletida no nome final;
+- se houver duplicidade fiscal entre Portal Nacional e ABRASF, o Portal Nacional tem preferencia e a ABRASF duplicada nao deve gerar copia operacional;
 - o sistema nao deve reler indefinidamente o mesmo PDF quando ele ja tiver sido processado.
 
 ## 7. Padrao minimo de dados a extrair
@@ -260,15 +265,15 @@ Campos desejaveis para log e conferencias futuras:
 Padrao recomendado para a V1, alinhado com o processo manual desejado:
 
 ```text
-NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valorServico>[_##RETIDO##].pdf
+NFSE_<numero>_<prestador>_<dataDD.MM.AAAA>_<valorServico>[_##IR_RETIDO##].pdf
 ```
 
 Exemplos:
 
 ```text
-NFSE_7_KELLE_EVANETE_LEMES_DE_ALMEIDA_20260424_256,50.pdf
-NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_20260304_1400,00_##RETIDO##.pdf
-NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_20260304_##CANCELADA##.pdf
+NFSE_7_KELLE_EVANETE_LEMES_DE_ALMEIDA_24.04.2026_256,50.pdf
+NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_04.03.2026_1400,00_##IR_RETIDO##.pdf
+NFSE_252_INVENTO_MARKETING_DIGITAL_E_TREINAMENTOS_LTDA_04.03.2026_##CANCELADA##.pdf
 ```
 
 Padroes de erro no nome:
@@ -285,9 +290,9 @@ Regras:
 - usar `_` como separador para facilitar automacao e evitar ambiguidades em scripts;
 - normalizar acentos somente se o sistema de arquivos exigir;
 - numero da nota deve preservar o numero real, sem completar com zeros a esquerda;
-- limitar tamanho do nome quando necessario;
+- limitar o nome operacional final a 150 caracteres para reduzir risco em caminhos Windows profundos;
 - se houver colisao, acrescentar sufixo incremental como `_01`, `_02`;
-- `##RETIDO##` so aparece quando houver evidencia objetiva de retencao;
+- `##IR_RETIDO##` so aparece quando houver evidencia objetiva de retencao;
 - `##CANCELADA##` tem prioridade sobre nome normal, e nota cancelada nao vai para `processados/`.
 
 ### 8.1 Prioridade de status
@@ -298,11 +303,11 @@ Quando houver mais de uma condicao especial, o sistema deve priorizar assim:
 2. `MODELO NAO SUPORTADO`
 3. `CNPJ INCORRETO PARA REPOSITORIO`
 4. `DADOS OBRIGATORIOS AUSENTES`
-5. nome normal, com ou sem `##RETIDO##`
+5. nome normal, com ou sem `##IR_RETIDO##`
 
 ### 8.2 Regra de retencao
 
-A V1 deve marcar `##RETIDO##` quando houver evidencia objetiva de retencao:
+A V1 deve marcar `##IR_RETIDO##` quando houver evidencia objetiva de retencao:
 
 - campo `Retencao do ISSQN`, `ISSQN Retido`, `Vl. ISSQN Retido` ou equivalente indicando retencao positiva;
 - algum campo de retencao federal positivo: PIS, COFINS, INSS, IRRF, CSLL ou outras retencoes;
@@ -397,7 +402,7 @@ Para manter o Java limpo, profissional e facil de evoluir, a implementacao deve 
 - `InvoiceParser`: interface comum para parsers.
 - `PortalNacionalParser` e `AbrasfParser`: parsers especificos por layout.
 - `CompanyValidator`: compara CNPJ/CPF do tomador com o CNPJ esperado da configuracao.
-- `RetentionDetector`: decide `##RETIDO##` por campos explicitos e comparacao segura de valores.
+- `RetentionDetector`: decide `##IR_RETIDO##` por campos explicitos e comparacao segura de valores.
 - `FileNameBuilder`: monta nome final e nomes de erro.
 - `DestinationService`: move para destino correto, tratando colisao de nomes.
 - `ProcessingLogger`: gera log tecnico e relatorio simples por execucao.
@@ -422,7 +427,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Criterios de aceite**
 
 - o repositorio compila com Java 17 e Maven;
-- o lote piloto tem pelo menos: Portal Nacional valido, ABRASF/ISSNet valido, PDF agrupado, cancelada, CNPJ errado, sem texto e modelo nao suportado;
+- o lote piloto tem pelo menos: Portal Nacional valido, ABRASF/ISSNet valido, PDF agrupado, cancelada, CNPJ do tomador errado, sem texto e modelo nao suportado;
 - cada arquivo do lote tem status esperado documentado;
 - nenhuma pasta operacional real da empresa e usada como pasta do codigo.
 
@@ -480,7 +485,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - layout nao suportado vai para revisao;
 - CNPJ do tomador divergente vira `CNPJ INCORRETO PARA REPOSITORIO`;
 - dados obrigatorios ausentes viram `DADOS OBRIGATORIOS AUSENTES`;
-- `##RETIDO##` so aparece com evidencia objetiva;
+- `##IR_RETIDO##` so aparece com evidencia objetiva;
 - valores conflitantes de retencao vao para revisao, sem chute.
 
 **Testes obrigatorios**
@@ -502,14 +507,14 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 
 - `FileNameBuilder`;
 - sanitizacao de caracteres invalidos;
-- limite de tamanho;
+- limite de 150 caracteres para o nome operacional final;
 - sufixo incremental para colisao;
 - nomes de erro para `MODELO NAO SUPORTADO`, `CNPJ INCORRETO PARA REPOSITORIO` e `DADOS OBRIGATORIOS AUSENTES`.
 
 **Criterios de aceite**
 
-- nome normal segue `NFSE_<numero>_<prestador>_<dataAAAAMMDD>_<valorServico>.pdf`;
-- nota retida acrescenta `##RETIDO##`;
+- nome normal segue `NFSE_<numero>_<prestador>_<dataDD.MM.AAAA>_<valorServico>.pdf`;
+- nota retida acrescenta `##IR_RETIDO##`;
 - nota cancelada acrescenta `##CANCELADA##`;
 - nomes de erro indicam motivo operacional;
 - colisao nao sobrescreve arquivo existente;
@@ -518,7 +523,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Testes obrigatorios**
 
 - teste de nome normal;
-- teste de nome com `##RETIDO##`;
+- teste de nome com `##IR_RETIDO##`;
 - teste de nome com `##CANCELADA##`;
 - teste de caracteres invalidos;
 - teste de truncamento;
@@ -631,7 +636,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - `batch` aceita uma pasta existente configurada como entrada, sem exigir que o sistema crie uma estrutura nova antes;
 - PDF valido termina em `processados/`;
 - PDF cancelado termina em `revisar/canceladas/`;
-- PDF com CNPJ errado, modelo nao suportado, sem texto ou dados ausentes termina em `revisar/`;
+- PDF com CNPJ do tomador errado, modelo nao suportado, sem texto ou dados ausentes termina em `revisar/`;
 - cada arquivo tem registro de log e ledger;
 - nao ha sobrescrita silenciosa;
 - em modo de homologacao com preservacao de entrada, os PDFs originais da pasta de entrada continuam no lugar.
@@ -753,7 +758,7 @@ A V1 sera considerada pronta quando todos os itens abaixo forem verdadeiros:
 - o sistema marca como `CNPJ INCORRETO PARA REPOSITORIO` os casos de CNPJ divergente;
 - o sistema marca como `MODELO NAO SUPORTADO` os layouts nao homologados;
 - o sistema marca `##CANCELADA##` quando a nota estiver cancelada;
-- o sistema marca `##RETIDO##` quando houver retencao confirmada;
+- o sistema marca `##IR_RETIDO##` quando houver retencao confirmada;
 - o sistema gera nome padrao consistente;
 - o sistema decide corretamente entre `processados/`, `revisar/` e `revisar/canceladas/`;
 - o sistema gera log compreensivel por arquivo;
@@ -813,12 +818,14 @@ Para cada PDF do lote piloto, registrar e validar:
 - a quantidade de notas geradas esta correta;
 - os dados principais batem com o conteudo visual da nota;
 - o CNPJ do tomador bate com o CNPJ esperado da empresa nos casos corretos;
-- notas na pasta errada foram desviadas com `CNPJ INCORRETO PARA REPOSITORIO`;
+- notas na pasta errada foram conferidas pelo CNPJ do tomador, nunca pelo CNPJ do prestador;
+- quando o CNPJ do tomador pertence a outro cliente com REST ativo, a nota foi enviada para as subpastas da REST correta;
+- quando o CNPJ do tomador pertence a outro cliente sem REST ativo, a nota ficou em `revisar/` com `NF_PASTA_INCORRETA_`;
 - layouts nao suportados foram desviados com `MODELO NAO SUPORTADO`;
 - PDFs sem texto foram desviados para revisao sem OCR;
 - notas canceladas foram desviadas com `##CANCELADA##`;
-- notas com retencao receberam `##RETIDO##`;
-- notas sem retencao nao receberam `##RETIDO##`;
+- notas com retencao receberam `##IR_RETIDO##`;
+- notas sem retencao nao receberam `##IR_RETIDO##`;
 - o nome final esta no padrao;
 - o destino final do arquivo esta correto;
 - o ledger registrou o processamento;
@@ -841,7 +848,7 @@ Qualquer nova prefeitura, nova empresa ou nova regra de negocio so entra em prod
 - **PDF sem texto selecionavel suficiente:** nao entra na automacao da V1; vai para `revisar/`.
 - **Layout novo nao homologado:** nao deve ser processado automaticamente; vai para `revisar/` com `MODELO NAO SUPORTADO`.
 - **CNPJ do tomador ausente ou ilegivel:** nao validar automaticamente; vai para `revisar/`.
-- **Nota na pasta da empresa errada:** deve ir para `revisar/` com `CNPJ INCORRETO PARA REPOSITORIO`.
+- **Nota na pasta da empresa errada:** deve usar somente o CNPJ do tomador para decidir o destino. Se o tomador tiver REST ativo em outro cadastro, processa pelo cadastro correto; se o tomador for conhecido mas sem REST ativo, vai para `revisar/` com `NF_PASTA_INCORRETA_`; se o tomador for desconhecido, vai para `revisar/` como CNPJ incorreto.
 - **Nota cancelada:** deve ir para `revisar/canceladas/` com `##CANCELADA##`.
 - **Valores de retencao conflitantes:** deve ir para `revisar/`, sem marcar retencao por chute.
 - **Arquivo travado ou ainda em copia:** aguardar estabilidade, registrar no log e tentar novamente quando aplicavel.

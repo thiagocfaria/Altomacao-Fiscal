@@ -95,6 +95,37 @@ class InvoiceParsersTest {
     }
 
     @Test
+    void abrasfParserMarksRetentionWhenNetValueIsLowerThanServiceValue() {
+        String text = """
+                Dados do Prestador
+                PRESTADOR TESTE LTDA
+                CPF/CNPJ
+                11.111.111/0001-11
+                Identificacao da Nota Fiscal
+                Numero da Nota Fiscal
+                123
+                Data de Geracao da NFS-e
+                02/04/2026
+                Dados do Tomador de Servicos
+                Razao Social : TOMADOR TESTE
+                CNPJ/CPF : 25.014.360/0001-73
+                Dados do Intermediario
+                Vl. Total dos Servicos
+                R$ 100,00
+                Vl. Liquido da NotaFiscal
+                R$ 95,00
+                Informacoes Adicionais
+                """;
+
+        InvoiceData invoice = new AbrasfIssnetParser().parse(text);
+
+        assertThat(invoice.serviceValue()).isEqualByComparingTo(new BigDecimal("100.00"));
+        assertThat(invoice.netValue()).isEqualByComparingTo(new BigDecimal("95.00"));
+        assertThat(invoice.retained()).isTrue();
+        assertThat(invoice.retentionConflict()).isFalse();
+    }
+
+    @Test
     void portalParserMarksConflictingRetentionEvidenceForReviewDecision() {
         String text = """
                 EMITENTE DA NFS-e

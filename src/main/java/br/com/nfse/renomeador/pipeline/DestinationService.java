@@ -29,11 +29,24 @@ public final class DestinationService {
         return send(source, companyPath, ProcessingStatus.MISSING_REQUIRED, fileName, preserveInput);
     }
 
+    public DestinationResult sendToReview(Path source, ResolvedCompanyPath companyPath, String fileName,
+                                          boolean preserveInput) throws IOException {
+        Path directory = PathsForCompany.review(companyPath);
+        Files.createDirectories(directory);
+        Path destination = nextAvailable(directory.resolve(fileName));
+        if (preserveInput) {
+            Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
+        } else {
+            move(source, destination);
+        }
+        return new DestinationResult(destination, preserveInput);
+    }
+
     private static Path destinationDirectory(ResolvedCompanyPath companyPath, ProcessingStatus status) {
         return switch (status) {
             case OK -> PathsForCompany.processed(companyPath);
             case CANCELLED -> PathsForCompany.cancelled(companyPath);
-            case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT -> PathsForCompany.review(companyPath);
+            case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT, DUPLICATE -> PathsForCompany.review(companyPath);
         };
     }
 

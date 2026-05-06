@@ -43,7 +43,7 @@ src/main/java/br/com/nfse/renomeador/
 ├── pdf/         -> PDFBox e extracao de texto
 ├── processing/  -> validacao de empresa e decisao de status
 ├── text/        -> normalizacao textual
-└── App          -> ponto de entrada; CLI batch/watch ainda pendente
+└── App          -> ponto de entrada CLI; batch/watch/config orquestram o pipeline
 ```
 
 Regras de fronteira (nao violar):
@@ -53,7 +53,7 @@ Regras de fronteira (nao violar):
 - `files/` e `ledger/` nao interpretam NFS-e.
 - `processing/` decide status com base em dados extraidos, sem fazer IO.
 - `config/` carrega caminhos e empresas, sem regra fiscal.
-- O futuro `batch/watch` deve orquestrar componentes existentes, nao duplicar parsing.
+- `batch/watch` deve orquestrar componentes existentes, nao duplicar parsing.
 
 ## Dois layouts homologados na V1
 
@@ -70,7 +70,7 @@ Regras de fronteira (nao violar):
 3. Records Java sem setters e sem estado mutavel para dados carregados/extrados.
 4. Campos ausentes devem ser tratados de forma explicita e conservadora; qualquer incerteza vai para `revisar/`.
 5. Mudanca pequena nao justifica espalhar alteracao por varias camadas sem necessidade.
-6. Nao inventar segundo modo de execucao quando `--mode=watch` e `--mode=batch` ja cobrem.
+6. Nao inventar segundo modo de execucao quando os comandos `watch` e `batch` ja cobrem.
 
 ## Regras de validacao
 
@@ -95,8 +95,24 @@ Uma NFS-e tem imposto retido quando:
 - `Vl. Liquido da NotaFiscal` < `Vl. Total dos Servicos` (ABRASF)
 - OU qualquer campo de retencao explicito > 0 (ISSQN Retido, IRRF, INSS, PIS, COFINS, CSLL, Outras Retencoes)
 
-Quando retido: sufixo `##RETIDO##` no nome final.
+Quando retido: sufixo `##IR_RETIDO##` no nome final.
 Quando cancelada: sufixo `##CANCELADA##` + pasta `revisar/canceladas/`.
+
+## Duplicidade Portal Nacional x ABRASF
+
+Quando existirem duas representacoes da mesma NFS-e, uma em Portal Nacional e outra em ABRASF/ISSNet, o Portal Nacional tem preferencia operacional.
+
+A ABRASF so pode ser descartada automaticamente quando todos estes campos fiscais baterem:
+- numero da nota;
+- CNPJ do prestador;
+- nome do prestador;
+- CNPJ do tomador;
+- data de emissao;
+- valor do servico;
+- valor liquido.
+
+Horario de emissao nao entra na chave de duplicidade da V1.
+O PDF original recebido continua preservado em `originais/`; o descarte automatico remove a copia operacional duplicada da entrada/processados.
 
 ## Ativacao por projeto
 

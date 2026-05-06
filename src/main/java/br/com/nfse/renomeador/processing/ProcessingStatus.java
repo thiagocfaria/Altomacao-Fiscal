@@ -6,5 +6,6 @@ public enum ProcessingStatus {
     UNSUPPORTED,
     WRONG_COMPANY,
     MISSING_REQUIRED,
-    RETENTION_CONFLICT
+    RETENTION_CONFLICT,
+    DUPLICATE
 }
