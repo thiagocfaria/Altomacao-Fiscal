@@ -11,6 +11,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.nio.file.WatchEvent;
 import java.util.List;
 import java.util.Optional;
@@ -82,6 +85,23 @@ class WatchFolderProcessorTest {
         assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
     }
 
+    @Test
+    void retriesPdfEventUntilFileBecomesStable() throws Exception {
+        ResolvedCompanyPath companyPath = companyPath();
+        Path input = tempDir.resolve("entrada");
+        Files.createDirectories(input);
+        Path pdf = input.resolve("NF 9 OK.pdf");
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pdf);
+
+        Thread toucher = touchFor(pdf, Duration.ofMillis(650));
+        var summary = new WatchFolderProcessor().processEvents(input, companyPath,
+                List.of(event(StandardWatchEventKinds.ENTRY_CREATE, Path.of("NF 9 OK.pdf"))), true);
+        toucher.join();
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(summary.skipped()).isZero();
+    }
+
     private ResolvedCompanyPath companyPath() {
         return companyPath("empresa_piloto", tempDir);
     }
@@ -140,5 +160,21 @@ class WatchFolderProcessorTest {
                 return null;
             }
         };
+    }
+
+    private static Thread touchFor(Path file, Duration duration) {
+        Thread thread = new Thread(() -> {
+            Instant end = Instant.now().plus(duration);
+            while (Instant.now().isBefore(end)) {
+                try {
+                    Files.setLastModifiedTime(file, FileTime.from(Instant.now()));
+                    Thread.sleep(50);
+                } catch (Exception exception) {
+                    throw new IllegalStateException(exception);
+                }
+            }
+        });
+        thread.start();
+        return thread;
     }
 }

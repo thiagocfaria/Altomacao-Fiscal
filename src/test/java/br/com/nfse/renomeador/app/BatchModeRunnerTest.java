@@ -155,6 +155,27 @@ class BatchModeRunnerTest {
     }
 
     @Test
+    void batchDoesNotDeleteDuplicateIndexDestinationOutsideCompanyRoot() throws Exception {
+        Path companyRoot = Files.createDirectories(tempDir.resolve("empresa"));
+        Path input = companyRoot.resolve("entrada");
+        Files.createDirectories(input);
+        writeTextPdf(input.resolve("01-abrasf.pdf"), abrasfDuplicateText());
+        Path config = writeConfig("25.014.360/0001-73", companyRoot);
+        new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        Path outside = Files.createDirectories(tempDir.resolve("fora-da-empresa")).resolve("arquivo-externo.pdf");
+        Files.writeString(outside, "nao deve ser apagado");
+        rewriteDuplicateIndexDestination(companyRoot, outside);
+        writeTextPdf(input.resolve("02-portal.pdf"), portalDuplicateText());
+
+        new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(outside).exists();
+        assertThat(Files.readString(companyRoot.resolve("logs").resolve("execucao.log")))
+                .contains("fora da pasta da empresa");
+    }
+
+    @Test
     void batchDoesNotDiscardAbrasfWhenFiscalDuplicateValueDiffers() throws Exception {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
@@ -174,6 +195,10 @@ class BatchModeRunnerTest {
     }
 
     private Path writeConfig(String taxId) throws Exception {
+        return writeConfig(taxId, tempDir);
+    }
+
+    private Path writeConfig(String taxId, Path root) throws Exception {
         Path config = tempDir.resolve("empresas.yaml");
         Files.writeString(config, """
                 empresas:
@@ -190,7 +215,7 @@ class BatchModeRunnerTest {
                       logs: "logs"
                       canceladas: "revisar/canceladas"
                       ledger: "logs/processados.idx"
-                """.formatted(taxId, tempDir.toString().replace("\\", "/")));
+                """.formatted(taxId, root.toString().replace("\\", "/")));
         return config;
     }
 
@@ -221,6 +246,14 @@ class BatchModeRunnerTest {
             }
             document.save(output.toFile());
         }
+    }
+
+    private static void rewriteDuplicateIndexDestination(Path root, Path destination) throws Exception {
+        Path index = root.resolve("logs").resolve("duplicadas.idx");
+        String line = Files.readString(index).lines().findFirst().orElseThrow();
+        String[] parts = line.split("\t", -1);
+        parts[3] = destination.toString();
+        Files.writeString(index, String.join("\t", parts) + System.lineSeparator());
     }
 
     private static String portalDuplicateText() {

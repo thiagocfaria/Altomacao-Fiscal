@@ -13,12 +13,16 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 final class WatchFolderProcessor {
+    private static final int MAX_STABILITY_ATTEMPTS = 5;
+    private static final Duration STABILITY_RETRY_DELAY = Duration.ofMillis(250);
+
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
     private final ProcessingLogger logger;
@@ -50,7 +54,7 @@ final class WatchFolderProcessor {
         for (InputCandidate candidate : scanner.scan(paths)) {
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(),
                     ignored -> new ProcessingSummary());
-            List<FileProcessingResult> results = pipeline.process(candidate, homologation, routes);
+            List<FileProcessingResult> results = processCandidateWithRetry(candidate, homologation, routes);
             recordResults(candidate.companyPath(), results, pathSummary, routes);
             recordAll(overall, results);
         }
@@ -85,7 +89,7 @@ final class WatchFolderProcessor {
             if (!isPdf(file)) {
                 continue;
             }
-            recordResults(companyPath, pipeline.process(new InputCandidate(companyPath, file), homologation, routes),
+            recordResults(companyPath, processCandidateWithRetry(new InputCandidate(companyPath, file), homologation, routes),
                     summary, routes);
         }
         logger.recordSummary(companyPath, summary);
@@ -95,8 +99,24 @@ final class WatchFolderProcessor {
     private void recordResultsFromScan(ResolvedCompanyPath companyPath, boolean homologation,
                                        ProcessingSummary summary, CompanyRouteDirectory routes) throws IOException {
         for (InputCandidate candidate : scanner.scan(List.of(companyPath))) {
-            recordResults(candidate.companyPath(), pipeline.process(candidate, homologation, routes), summary, routes);
+            recordResults(candidate.companyPath(), processCandidateWithRetry(candidate, homologation, routes),
+                    summary, routes);
         }
+    }
+
+    private List<FileProcessingResult> processCandidateWithRetry(InputCandidate candidate, boolean homologation,
+                                                                 CompanyRouteDirectory routes) throws IOException {
+        List<FileProcessingResult> lastResult = List.of();
+        for (int attempt = 1; attempt <= MAX_STABILITY_ATTEMPTS; attempt++) {
+            lastResult = pipeline.process(candidate, homologation, routes);
+            if (!isUnstableSkip(lastResult) || attempt == MAX_STABILITY_ATTEMPTS) {
+                return lastResult;
+            }
+            if (!sleepBeforeRetry()) {
+                return lastResult;
+            }
+        }
+        return lastResult;
     }
 
     private void recordResults(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
@@ -137,5 +157,21 @@ final class WatchFolderProcessor {
 
     private static boolean isPdf(Path path) {
         return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
+    }
+
+    private static boolean isUnstableSkip(List<FileProcessingResult> results) {
+        return results.size() == 1
+                && results.get(0).skipped()
+                && FileProcessingResult.REASON_UNSTABLE_FILE.equals(results.get(0).reason());
+    }
+
+    private static boolean sleepBeforeRetry() {
+        try {
+            Thread.sleep(STABILITY_RETRY_DELAY.toMillis());
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 }

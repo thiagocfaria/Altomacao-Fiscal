@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1380" viewBox="0 0 1800 1380" role="img" aria-labelledby="title desc">
-  <title id="title">Fluxo ilustrado do Renomeador NFS-e</title>
+  <title id="title">DA - DOCUMENTO DE APOIO - Fluxo ilustrado do Renomeador NFS-e</title>
   <desc id="desc">Infografico operacional mostrando como o usuario preenche a planilha, importa o YAML (arquivo de configuracao), roda batch (uma passada) ou watch (monitoramento continuo em espera) e como o sistema valida CNPJ do tomador, roteia, renomeia e envia PDFs para processados ou revisao.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -41,6 +41,7 @@
     </marker>
     <style>
       .title{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:44px;fill:#17202a}
+      .doc-label{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:18px;letter-spacing:2px;fill:#1266d6}
       .subtitle{font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:21px;fill:#34495e}
       .panel-title{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:27px;fill:#12213a}
       .step{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:18px;fill:#fff}
@@ -73,9 +74,10 @@
   <rect class="halftone" x="0" y="0" width="1800" height="1380" fill="url(#dots)"/>
 
   <g transform="translate(62 42)">
-    <path d="M0 8 L1240 8 Q1270 8 1290 30 L1360 110 L0 110 Z" fill="#ffffff" stroke="#17202a" stroke-width="5" filter="url(#shadow)"/>
-    <text class="title" x="34" y="55">Renomeador de NFS-e: guia operacional</text>
-    <text class="subtitle" x="36" y="88">Da planilha REST (pasta do cliente) ate processados, revisar, originais, logs e ledger (historico)</text>
+    <path d="M0 8 L1240 8 Q1270 8 1290 30 L1360 130 L0 130 Z" fill="#ffffff" stroke="#17202a" stroke-width="5" filter="url(#shadow)"/>
+    <text class="doc-label" x="36" y="36">DA - DOCUMENTO DE APOIO</text>
+    <text class="title" x="34" y="72">Renomeador de NFS-e: guia operacional</text>
+    <text class="subtitle" x="36" y="106">Da planilha REST (pasta do cliente) ate processados, revisar, originais, logs e ledger (historico)</text>
     <g transform="translate(1430 4)">
       <circle cx="55" cy="55" r="52" fill="url(#purple)" stroke="#17202a" stroke-width="4"/>
       <path d="M35 34 h42 a12 12 0 0 1 12 12 v34 a12 12 0 0 1 -12 12 H35 a12 12 0 0 1 -12 -12 V46 a12 12 0 0 1 12 -12Z" fill="#fff"/>
@@ -153,6 +155,7 @@
       <text class="label" x="20" y="28">O YAML (configuracao) vira a regra do sistema</text>
       <text class="small" x="20" y="53">- empresa habilitada = REST preenchido</text>
       <text class="small" x="20" y="73">- sem REST = conhecida, mas nao monitorada</text>
+      <text class="tiny" x="20" y="91">- origem generica exige SOMENTE ORIGEM = SIM</text>
     </g>
   </g>
 
@@ -179,8 +182,8 @@
     <path class="arrow" d="M242 152 H282"/>
     <g transform="translate(70 250)">
       <path class="speech" d="M0 0 H370 Q390 0 390 20 V58 Q390 78 370 78 H215 L195 103 L200 78 H0 Q-20 78 -20 58 V20 Q-20 0 0 0Z"/>
-      <text class="text" x="16" y="27">Os dois modos usam o mesmo pipeline (esteira de etapas).</text>
-      <text class="text" x="16" y="53">Nao duplica: ledger (historico) + hash (assinatura do arquivo).</text>
+      <text class="text" x="16" y="27">Os dois modos usam o mesmo pipeline e nao rodam juntos no mesmo YAML.</text>
+      <text class="text" x="16" y="53">Nao duplica: trava de instancia + ledger + hash do arquivo.</text>
     </g>
   </g>
 

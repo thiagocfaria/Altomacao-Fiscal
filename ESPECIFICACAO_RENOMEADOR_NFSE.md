@@ -14,7 +14,7 @@
 
 Este documento continua como roteiro tecnico da V1. O diario operacional fica em `SITUACAO_ATUAL.md`.
 
-Status em 05/05/2026:
+Status em 06/05/2026:
 
 - [x] repositorio Git inicializado;
 - [x] projeto Java 17/Maven criado;
@@ -32,7 +32,14 @@ Status em 05/05/2026:
 - [x] importacao de planilha Excel para `empresas.yaml`;
 - [x] preparacao de `PLANILHA_FISCAL_MODELO.xlsm` com visual PROTONS e 30 linhas extras para novos clientes;
 - [x] scripts Windows basicos;
-- [ ] homologacao operacional em pasta real.
+- [x] homologacao operacional inicial em pasta real com pasta REST errada;
+- [x] retry do watcher para PDF ainda instavel;
+- [x] coluna `SOMENTE ORIGEM` para pastas de origem genericas;
+- [x] teste de integracao automatizado `*IT.java` com PDF real;
+- [x] validacao de CNPJ de tomador duplicado entre empresas de destino ativas;
+- [x] trava de instancia para impedir `batch` e `watch` simultaneos no mesmo `empresas.yaml`;
+- [x] erros operacionais da CLI sem stack trace Java no uso normal;
+- [ ] validacao final no Windows/Excel oficial da operacao.
 
 ## 1. Resumo simples da ideia
 
@@ -386,6 +393,7 @@ Regra:
 Para manter o Java limpo, profissional e facil de evoluir, a implementacao deve ser separada por responsabilidades pequenas:
 
 - `App`: ponto de entrada CLI, recebe modo de execucao, empresa e mes opcional.
+- `ApplicationLock`: impede duas instancias simultaneas usando o mesmo arquivo de configuracao.
 - `CompanyRegistryLoader`: carrega e valida o cadastro `empresas.yaml`.
 - `CompanySelector`: decide quais empresas estao ativas naquela execucao.
 - `MonthlyPathResolver`: resolve mes atual, mes informado, lista de meses ou caminho direto.
@@ -852,7 +860,9 @@ Qualquer nova prefeitura, nova empresa ou nova regra de negocio so entra em prod
 - **Nota cancelada:** deve ir para `revisar/canceladas/` com `##CANCELADA##`.
 - **Valores de retencao conflitantes:** deve ir para `revisar/`, sem marcar retencao por chute.
 - **Arquivo travado ou ainda em copia:** aguardar estabilidade, registrar no log e tentar novamente quando aplicavel.
-- **Falha no WatchService ou reinicio do programa:** o `batch` continua sendo rede de seguranca.
+- **Falha no WatchService ou reinicio do programa:** o `batch` continua sendo rede de seguranca, executado quando o `watch` nao estiver ativo com o mesmo `empresas.yaml`.
+- **Execucao simultanea com o mesmo cadastro:** `batch` e `watch` usam trava por `empresas.yaml`; a segunda instancia deve falhar em vez de competir pelos mesmos PDFs.
+- **CNPJ duplicado em empresas ativas:** bloquear a configuracao para evitar roteamento ambiguo de notas encontradas em pasta errada.
 - **Permissao insuficiente nas pastas externas:** registrar falha de ambiente e interromper o lote com mensagem clara.
 - **Arquivos com varias notas em sequencia irregular:** se a fronteira da nota nao estiver clara, priorizar seguranca e revisar manualmente.
 - **Dados faltantes no proprio PDF:** o sistema nao inventa informacao; apenas sinaliza revisao.

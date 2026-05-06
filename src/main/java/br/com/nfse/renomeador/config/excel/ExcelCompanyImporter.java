@@ -76,6 +76,7 @@ public final class ExcelCompanyImporter {
         int nameColumn = requiredColumn(columns, "empresa");
         int taxColumn = requiredColumn(columns, "cnpj");
         int pathColumn = requiredColumn(columns, "caminho");
+        Integer sourceOnlyColumn = columns.get("somenteorigem");
 
         List<ImportedCompany> companies = new ArrayList<>();
         Map<String, Integer> idCounts = new HashMap<>();
@@ -87,6 +88,7 @@ public final class ExcelCompanyImporter {
             String name = text(row.getCell(nameColumn));
             String taxId = normalizeTaxId(text(row.getCell(taxColumn)));
             String path = pathFrom(row.getCell(pathColumn));
+            boolean sourceOnly = sourceOnlyColumn != null && isAffirmative(text(row.getCell(sourceOnlyColumn)));
             if (name.isBlank() && taxId.isBlank() && path.isBlank()) {
                 continue;
             }
@@ -100,12 +102,20 @@ public final class ExcelCompanyImporter {
                 if (path.isBlank()) {
                     continue;
                 }
+                if (!sourceOnly) {
+                    throw new IllegalArgumentException("CNPJ invalido na linha " + (rowIndex + 1)
+                            + "; corrija o CNPJ ou marque SOMENTE ORIGEM como SIM");
+                }
                 companies.add(new ImportedCompany(uniqueIdFor(name, idCounts), name, taxId, false,
                         Path.of(path), true));
                 continue;
             }
+            if (sourceOnly && path.isBlank()) {
+                throw new IllegalArgumentException("SOMENTE ORIGEM exige CAMINHO REST preenchido na linha "
+                        + (rowIndex + 1));
+            }
             companies.add(new ImportedCompany(uniqueIdFor(name, idCounts), name, taxId, path.isBlank(),
-                    path.isBlank() ? Path.of(".") : Path.of(path), false));
+                    path.isBlank() ? Path.of(".") : Path.of(path), sourceOnly));
         }
         return List.copyOf(companies);
     }
@@ -186,7 +196,23 @@ public final class ExcelCompanyImporter {
         if (normalized.equals("cnpjtomador")) {
             return "cnpj";
         }
+        if (normalized.equals("somenteorigem") || normalized.equals("origem")
+                || normalized.equals("pastaorigem") || normalized.equals("sourceonly")) {
+            return "somenteorigem";
+        }
         return normalized;
+    }
+
+    private static boolean isAffirmative(String value) {
+        String normalized = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+                .transform(DIACRITICS::matcher).replaceAll("")
+                .strip()
+                .toLowerCase(Locale.ROOT);
+        return normalized.equals("sim")
+                || normalized.equals("s")
+                || normalized.equals("true")
+                || normalized.equals("x")
+                || normalized.equals("1");
     }
 
     private static String normalizeTaxId(String value) {

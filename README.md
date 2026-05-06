@@ -42,31 +42,38 @@ Implementado:
 - processamento `batch` com scanner de entrada, destino, ledger e logs;
 - CLI operacional com Picocli;
 - modo `watch` com `WatchService`, varredura inicial e revarredura em overflow;
+- retry no `watch` quando o PDF ainda esta sendo copiado e nao estabilizou;
+- trava de instancia por `empresas.yaml`, impedindo `batch` e `watch` simultaneos no mesmo cadastro;
 - modo de homologacao para preservar PDFs de entrada;
 - importacao de cadastro por planilha Excel `.xlsx`/`.xlsm`;
 - preparacao da planilha `PLANILHA_FISCAL_MODELO.xlsm` para preencher `CAMINHO REST`;
 - validacao tecnica de `empresas.yaml`;
+- bloqueio de CNPJ de tomador duplicado entre empresas de destino ativas;
 - roteamento de nota encontrada na pasta REST errada para a pasta REST correta quando o CNPJ do tomador da nota for conhecido;
 - preferencia por Portal Nacional quando existir ABRASF duplicada com os mesmos dados fiscais;
+- trava para nao remover duplicata operacional quando o indice apontar para arquivo fora da pasta da empresa;
+- erros operacionais da CLI exibidos como `ERRO: ...`, sem stack trace Java para uso normal;
 - log operacional com `duracaoMs` por arquivo.
 
-Validado nesta maquina em 05/05/2026:
+Validado nesta maquina em 06/05/2026:
 
 - JDK 17 portatil em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`;
 - Maven 3.9.9 portatil em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`;
-- `mvn test`: 81 testes, 0 falhas;
-- `mvn verify -Pintegration`: 81 testes, 0 falhas;
+- `mvn test`: 97 testes, 0 falhas;
+- `mvn verify -Pintegration`: 97 testes unitarios + 1 teste de integracao, 0 falhas;
 - `mvn package`: sucesso e jar gerado em `target/renomeador-nfse-0.1.0-SNAPSHOT.jar`;
 - `java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar --help`: sucesso;
-- `PLANILHA_FISCAL_MODELO.xlsm` importada com 87 empresas e configuracao validada;
+- `PLANILHA_FISCAL_MODELO.xlsm` importada com 88 empresas e configuracao validada;
 - homologacao controlada em pasta temporaria com os PDFs modelo: 16 notas/saidas processadas, 7 OK, 1 cancelada, 8 revisao, 0 erros;
 - reexecucao do mesmo lote: 0 processados, 10 ignorados por ledger, 0 erros.
+- homologacao real inicial em pasta REST errada: 17 paginas/saidas, 13 OK, 3 revisao, 1 cancelada, 0 erros.
 
 Ainda pendente para liberar operacao:
 
-- preencher `CAMINHO REST` na planilha modelo para os clientes que devem rodar;
 - importar a planilha modelo para o `empresas.yaml` definitivo;
-- homologacao manual em pasta real da empresa.
+- testar o pacote no Windows/Excel oficial da operacao, incluindo macro de duplo clique e scripts `.bat`;
+- definir rotina operacional: `batch --homologacao` de conferencia, `batch` real agendado ou `watch` continuo. Nao rode `batch` e `watch` ao mesmo tempo com o mesmo `empresas.yaml`;
+- conferir logs e arquivos gerados com o responsavel fiscal antes de deixar em producao.
 
 ## Instalacao e dependencias
 
@@ -122,6 +129,7 @@ java -jar target\renomeador-nfse-0.1.0-SNAPSHOT.jar --help
 5. Use os scripts de apoio quando estiver no Windows:
 
 ```bat
+scripts\windows\compilar.bat
 scripts\windows\preparar-planilha.bat C:\entrada\PLANILHA_ORIGINAL.xlsm C:\saida\PLANILHA_FISCAL_MODELO.xlsm
 scripts\windows\importar-planilha.bat C:\saida\PLANILHA_FISCAL_MODELO.xlsm C:\NFSE\empresas.yaml
 scripts\windows\validar-config.bat C:\NFSE\empresas.yaml
@@ -147,6 +155,8 @@ mvn verify -Pintegration
 mvn package
 ```
 
+O profile `integration` tambem roda testes `*IT.java` com PDF real. A homologacao operacional continua sendo a rodada com PDFs e pastas reais da empresa.
+
 Quando o ambiente nao permitir escrita em `~/.m2`, use um repositorio Maven local temporario:
 
 ```bash
@@ -161,7 +171,7 @@ Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codi
 
 Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for a pasta de PDFs modelo do projeto (`NF MODELO ABRASP E PORTAL NACIONAL/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
 
-A planilha de trabalho do projeto e `PLANILHA_FISCAL_MODELO.xlsm`. Ela preserva o VBA da planilha original, aplica identidade visual PROTONS, deixa filtro e cabecalho prontos, renomeia a coluna de cidade para `CIDADE`, formata `CNPJ` e `CAMINHO REST` como texto, marca CNPJs invalidos em amarelo para revisao e mantem 30 linhas extras prontas abaixo da ultima empresa cadastrada.
+A planilha de trabalho do projeto e `PLANILHA_FISCAL_MODELO.xlsm`. Ela preserva o VBA da planilha original, aplica identidade visual PROTONS, deixa filtro e cabecalho prontos, renomeia a coluna de cidade para `CIDADE`, formata `CNPJ` e `CAMINHO REST` como texto, marca CNPJs invalidos em amarelo para revisao, mantem 30 linhas extras prontas abaixo da ultima empresa cadastrada e inclui a coluna `SOMENTE ORIGEM`.
 
 Mantenha apenas essa planilha modelo como planilha operacional local do projeto. A planilha bruta/original serve somente como entrada para recriar o modelo quando chegar uma versao nova; planilhas fiscais com dados de clientes nao devem ser publicadas no GitHub.
 
@@ -183,6 +193,10 @@ Na planilha `Dashboard Fiscal`, o sistema tambem entende o cabecalho da linha 2 
 O campo `CNPJ` da planilha sempre representa o CNPJ esperado do tomador da NFS-e. O CNPJ do prestador tambem aparece dentro da nota, mas ele nao decide qual pasta REST deve receber o PDF.
 
 O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST e tratado como a pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas `processados/`, `revisar/`, `originais/` e `logs/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento.
+
+A coluna `SOMENTE ORIGEM` deve receber `SIM` somente para uma pasta de entrada generica ou pasta errada de teste. Essa linha sera monitorada como origem, mas nunca sera usada como destino por CNPJ. Se houver CNPJ invalido com `CAMINHO REST` preenchido e `SOMENTE ORIGEM` vazio, a importacao falha para evitar esconder erro de digitacao.
+
+O mesmo CNPJ de tomador nao pode aparecer em duas empresas de destino ativas. Essa validacao evita que uma nota em pasta errada seja roteada para a REST errada quando houver cadastro duplicado na planilha.
 
 ### Macro de duplo clique da planilha
 
@@ -250,6 +264,8 @@ Modo continuo:
 ```bash
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config C:/caminho/empresas.yaml
 ```
+
+Os comandos `batch` e `watch` usam uma trava por arquivo de configuracao. Se outro processo ja estiver rodando com o mesmo `empresas.yaml`, a segunda execucao falha com mensagem de instancia em uso. Para servidor, escolha uma rotina principal: `watch` continuo ou `batch` pelo Agendador do Windows; nao mantenha os dois concorrendo no mesmo cadastro.
 
 No modo `watch`, o Java fica aberto aguardando evento da pasta. Ele nao fica processando PDFs continuamente; trabalha na varredura inicial, quando entra arquivo novo, quando um PDF termina de copiar/alterar ou quando o sistema operacional avisa que precisa revarrer a pasta.
 

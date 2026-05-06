@@ -22,12 +22,21 @@ public final class CompanyRegistryValidator {
 
     public void validateBasics(CompanyRegistry registry) {
         Set<String> ids = new HashSet<>();
+        Map<String, String> destinationTaxIds = new HashMap<>();
         for (CompanyConfig company : registry.companies()) {
             if (!ids.add(company.id())) {
                 throw new IllegalArgumentException("id duplicado: " + company.id());
             }
             if (!company.sourceOnly() && !isValidCnpj(company.customerTaxId())) {
                 throw new IllegalArgumentException("CNPJ invalido para empresa " + company.id());
+            }
+            if (company.enabled() && !company.sourceOnly()) {
+                String taxId = digits(company.customerTaxId());
+                String previous = destinationTaxIds.putIfAbsent(taxId, company.id());
+                if (previous != null) {
+                    throw new IllegalArgumentException("CNPJ duplicado entre empresas "
+                            + previous + " e " + company.id() + ": " + company.customerTaxId());
+                }
             }
         }
     }
@@ -78,12 +87,16 @@ public final class CompanyRegistryValidator {
     }
 
     private static boolean isValidCnpj(String value) {
-        String digits = value == null ? "" : NON_DIGITS.matcher(value).replaceAll("");
+        String digits = digits(value);
         if (digits.length() != 14 || digits.chars().distinct().count() == 1) {
             return false;
         }
         return checkDigit(digits, 12) == Character.digit(digits.charAt(12), 10)
                 && checkDigit(digits, 13) == Character.digit(digits.charAt(13), 10);
+    }
+
+    private static String digits(String value) {
+        return value == null ? "" : NON_DIGITS.matcher(value).replaceAll("");
     }
 
     private static int checkDigit(String digits, int length) {

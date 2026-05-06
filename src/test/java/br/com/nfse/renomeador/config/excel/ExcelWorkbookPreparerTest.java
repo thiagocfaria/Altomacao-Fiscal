@@ -37,6 +37,7 @@ class ExcelWorkbookPreparerTest {
             Row invalid = sheet.createRow(3);
             invalid.createCell(0).setCellValue("Cliente Invalido");
             invalid.createCell(3).setCellValue("123");
+            invalid.createCell(17).setCellValue("/dados/clientes/origem");
             workbook.write(out);
         }
 
@@ -48,6 +49,7 @@ class ExcelWorkbookPreparerTest {
             assertThat(sheet.isDisplayGridlines()).isFalse();
             assertThat(fillArgb(sheet, 0, 0)).isEqualTo("FF07111F");
             assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("CIDADE");
+            assertThat(sheet.getRow(1).getCell(18).getStringCellValue()).isEqualTo("SOMENTE ORIGEM");
             assertThat(sheet.getPaneInformation().isFreezePane()).isTrue();
             assertThat(sheet.getCTWorksheet().isSetAutoFilter()).isTrue();
             assertThat(sheet.getCTWorksheet().getAutoFilter().getRef()).isEqualTo("A2:S34");
@@ -62,6 +64,7 @@ class ExcelWorkbookPreparerTest {
             assertThat(fillArgb(sheet, 2, 3)).isNotEqualTo("FFFFF2B8");
             assertThat(fillArgb(sheet, 3, 3)).isEqualTo("FFFFF2B8");
             assertThat(sheet.getRow(3).getCell(3).getCellComment()).isNotNull();
+            assertThat(sheet.getRow(3).getCell(18).getStringCellValue()).isEqualTo("SIM");
         }
     }
 

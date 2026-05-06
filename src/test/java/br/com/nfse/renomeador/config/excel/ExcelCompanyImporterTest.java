@@ -120,7 +120,7 @@ class ExcelCompanyImporterTest {
         Path wrongFolder = Files.createDirectories(tempDir.resolve("pasta-errada"));
         Path targetFolder = Files.createDirectories(tempDir.resolve("destino-correto"));
         Path workbook = dashboardFiscalWorkbook(
-                dashboardRow("Origem Errada", "123", wrongFolder.toString()),
+                dashboardRow("Origem Errada", "123", wrongFolder.toString(), "SIM"),
                 dashboardRow("Cliente Correto", "25.014.360/0001-73", targetFolder.toString())
         );
         Path output = tempDir.resolve("empresas.yaml");
@@ -136,6 +136,18 @@ class ExcelCompanyImporterTest {
         assertThat(source.customerTaxId()).isEqualTo("123");
         assertThat(source.basePath()).isEqualTo(wrongFolder);
         assertThat(registry.companies().get(1).sourceOnly()).isFalse();
+    }
+
+    @Test
+    void rejectsInvalidCnpjWithRestWhenSourceOnlyIsNotExplicit() throws Exception {
+        Path wrongFolder = Files.createDirectories(tempDir.resolve("pasta-errada"));
+        Path workbook = dashboardFiscalWorkbook(
+                dashboardRow("Origem Errada", "123", wrongFolder.toString(), "")
+        );
+
+        assertThatThrownBy(() -> new ExcelCompanyImporter().importToYaml(workbook, tempDir.resolve("out.yaml"), ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SOMENTE ORIGEM");
     }
 
     @Test
@@ -234,11 +246,15 @@ class ExcelCompanyImporterTest {
             header.createCell(2).setCellValue("EMPRESA");
             header.createCell(3).setCellValue("CNPJ");
             header.createCell(17).setCellValue("CAMINHO REST\n(duplo-clique)");
+            header.createCell(18).setCellValue("SOMENTE ORIGEM");
             for (int index = 0; index < rows.length; index++) {
                 Row row = sheet.createRow(index + 2);
                 row.createCell(0).setCellValue(rows[index][0]);
                 row.createCell(3).setCellValue(rows[index][1]);
                 row.createCell(17).setCellValue(rows[index][2]);
+                if (rows[index].length > 3) {
+                    row.createCell(18).setCellValue(rows[index][3]);
+                }
             }
             wb.write(out);
         }
@@ -251,5 +267,9 @@ class ExcelCompanyImporterTest {
 
     private static String[] dashboardRow(String name, String taxId, String restPath) {
         return new String[]{name, taxId, restPath};
+    }
+
+    private static String[] dashboardRow(String name, String taxId, String restPath, String sourceOnly) {
+        return new String[]{name, taxId, restPath, sourceOnly};
     }
 }

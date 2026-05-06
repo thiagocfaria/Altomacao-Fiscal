@@ -1,6 +1,7 @@
 package br.com.nfse.renomeador;
 
 import br.com.nfse.renomeador.app.BatchModeRunner;
+import br.com.nfse.renomeador.app.ApplicationLock;
 import br.com.nfse.renomeador.app.WatchModeRunner;
 import br.com.nfse.renomeador.config.CompanyRegistryLoader;
 import br.com.nfse.renomeador.config.CompanyRegistryValidator;
@@ -21,8 +22,24 @@ public final class App {
     }
 
     public static void main(String[] args) {
-        int exitCode = new CommandLine(new Cli()).execute(args);
+        int exitCode = commandLine().execute(args);
         System.exit(exitCode);
+    }
+
+    public static CommandLine commandLine() {
+        return new CommandLine(new Cli()).setExecutionExceptionHandler((exception, commandLine, parseResult) -> {
+            commandLine.getErr().println("ERRO: " + errorMessage(exception));
+            return 2;
+        });
+    }
+
+    private static String errorMessage(Throwable exception) {
+        Throwable current = exception;
+        while (current.getCause() != null && (current.getMessage() == null || current.getMessage().isBlank())) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
     }
 
     @Command(
@@ -65,15 +82,17 @@ public final class App {
     public static final class BatchCommand extends BaseCommand implements Callable<Integer> {
         @Override
         public Integer call() throws Exception {
-            ProcessingSummary summary = new BatchModeRunner().run(config, companyId(), month(), homologation);
-            System.out.printf("Processados=%d OK=%d Canceladas=%d Duplicadas=%d Ignorados=%d Erros=%d%n",
-                    summary.total(),
-                    summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.OK),
-                    summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.CANCELLED),
-                    summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.DUPLICATE),
-                    summary.skipped(),
-                    summary.errors());
-            return summary.errors() == 0 ? 0 : 2;
+            try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
+                ProcessingSummary summary = new BatchModeRunner().run(config, companyId(), month(), homologation);
+                System.out.printf("Processados=%d OK=%d Canceladas=%d Duplicadas=%d Ignorados=%d Erros=%d%n",
+                        summary.total(),
+                        summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.OK),
+                        summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.CANCELLED),
+                        summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.DUPLICATE),
+                        summary.skipped(),
+                        summary.errors());
+                return summary.errors() == 0 ? 0 : 2;
+            }
         }
     }
 
@@ -81,7 +100,9 @@ public final class App {
     public static final class WatchCommand extends BaseCommand implements Callable<Integer> {
         @Override
         public Integer call() throws Exception {
-            new WatchModeRunner().run(config, companyId(), month(), homologation);
+            try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
+                new WatchModeRunner().run(config, companyId(), month(), homologation);
+            }
             return 0;
         }
     }

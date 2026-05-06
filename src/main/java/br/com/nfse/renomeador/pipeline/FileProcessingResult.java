@@ -14,6 +14,8 @@ public record FileProcessingResult(
         Exception error,
         long durationMillis
 ) {
+    public static final String REASON_UNSTABLE_FILE = "Arquivo ainda nao esta estavel";
+
     public static FileProcessingResult skipped(String companyId, Path source, String reason) {
         return skipped(companyId, source, reason, 0L);
     }

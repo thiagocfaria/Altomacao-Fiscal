@@ -1,10 +1,10 @@
 # SITUACAO ATUAL
 
-Atualizado em 05/05/2026.
+Atualizado em 06/05/2026.
 
 ## 1. Onde estamos
 
-**Fase:** V1.1 de preparacao operacional implementada e validada em testes. O proximo passo e preencher os caminhos REST na planilha modelo, importar o YAML definitivo e testar em pasta real.
+**Fase:** V1.1 de preparacao operacional implementada e validada em testes. O lote real inicial em pasta REST errada rodou sem erros tecnicos; o proximo passo e validar no Windows/Excel oficial da operacao e fechar o pacote P1.
 
 - Repositorio Git inicializado e preparado para publicar no GitHub.
 - Projeto Java 17/Maven criado em `src/main/java`.
@@ -45,42 +45,49 @@ Atualizado em 05/05/2026.
 - [x] Comando para preparar copia profissional da planilha: `config preparar-planilha`.
 - [x] `PLANILHA_FISCAL_MODELO.xlsm` gerada, preservando o projeto VBA.
 - [x] Planilha modelo preparada com visual PROTONS, cabecalho congelado, filtro, coluna `CIDADE`, coluna REST destacada, CNPJs invalidos em amarelo e 30 linhas extras para novos clientes.
-- [x] Importacao da planilha preparada validada: 87 empresas importadas para YAML temporario.
+- [x] Importacao da planilha preparada validada: 88 empresas importadas para YAML temporario.
 - [x] `config check` aprovado sobre o YAML temporario importado da planilha preparada.
 - [x] Validacao tecnica de `empresas.yaml` via CLI.
 - [x] Watcher com varredura inicial, `ENTRY_CREATE`, `ENTRY_MODIFY` e revarredura em `OVERFLOW`.
+- [x] Watcher tenta novamente quando o PDF ainda esta sendo copiado e nao estabilizou.
 - [x] Ledger reconhece arquivo ja processado por SHA-256 mesmo quando o caminho muda.
 - [x] Duplicidade fiscal Portal Nacional x ABRASF detectada por campos fiscais, com preferencia pelo Portal Nacional.
+- [x] Remocao de duplicata operacional travada para nao apagar arquivo fora da pasta da empresa.
 - [x] Nota encontrada na pasta REST errada pode ser processada pelo cadastro correto e enviada para as subpastas da REST correta pelo CNPJ do tomador.
 - [x] Nota roteada da REST errada para a REST correta agora registra log operacional tambem no cliente correto e grava ledger do cliente correto.
 - [x] Diagnostico tecnico da planilha modelo confirma pacote `.xlsm` macro-habilitado com `vbaProject.bin`, `Worksheet_BeforeDoubleClick` e `FileDialogFolderPicker`; se o duplo clique nao funcionar no Windows, verificar bloqueio de macros/confianca do Excel.
 - [x] Log operacional registra `duracaoMs` por arquivo.
-- [x] Scripts Windows em `scripts/windows/`.
+- [x] Scripts Windows em `scripts/windows/`, incluindo `compilar.bat` e guarda quando o JAR ainda nao existe.
+- [x] Coluna `SOMENTE ORIGEM` usada para diferenciar pasta de entrada generica de CNPJ invalido digitado errado.
+- [x] Validacao bloqueia CNPJ de tomador duplicado entre empresas de destino ativas.
+- [x] `batch` e `watch` usam trava de instancia por `empresas.yaml`, evitando execucao simultanea no mesmo cadastro.
+- [x] CLI exibe erros operacionais como `ERRO: ...`, sem stack trace Java para uso normal.
 - [x] JDK 17 portatil instalado em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`.
 - [x] Maven 3.9.9 portatil instalado em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`.
-- [x] `mvn test` aprovado em 05/05/2026.
-- [x] `mvn verify -Pintegration` aprovado em 05/05/2026: 81 testes, 0 falhas.
+- [x] `mvn test` aprovado em 06/05/2026: 97 testes, 0 falhas.
+- [x] `mvn verify -Pintegration` aprovado em 06/05/2026: 97 testes unitarios + 1 teste de integracao, 0 falhas.
 - [x] `mvn package` aprovado.
 - [x] Jar validado com `--help`.
 - [x] Homologacao controlada com PDFs modelo em pasta temporaria.
 - [x] Reexecucao validada: 10 arquivos ignorados por ledger, 0 erros.
+- [x] Homologacao real inicial em pasta REST errada: 17 paginas/saidas, 13 OK, 3 revisao, 1 cancelada, 0 erros.
 
 ## 3. Ainda falta para fechar a V1
 
-- [ ] Preencher `CAMINHO REST` na `PLANILHA_FISCAL_MODELO.xlsm` para os clientes que devem rodar.
 - [ ] Importar `PLANILHA_FISCAL_MODELO.xlsm` para `empresas.yaml` definitivo e validar caminhos.
-- [ ] Executar lote piloto em pasta real fora do repositorio.
+- [ ] Executar teste no Windows/Excel oficial da operacao, incluindo macro de duplo clique e scripts `.bat`.
 - [ ] Conferir logs e relatorio operacional com o responsavel.
+- [ ] Definir rotina final: `batch --homologacao`, `batch` real agendado ou `watch` continuo, sem rodar `batch` e `watch` simultaneamente com o mesmo `empresas.yaml`.
 
 ## 4. Proximo passo recomendado
 
-Importar a planilha modelo preenchida e validar em pasta real da empresa:
+Validar o pacote P1 no Windows/Excel oficial da operacao:
 
 ```text
-preencher CAMINHO REST -> config import-excel -> config check -> batch em pasta real -> conferir logs/relatorio -> watch manual -> liberar V1.1
+config import-excel -> config check -> batch --homologacao -> conferir logs/relatorio -> escolher batch agendado OU watch continuo -> teste .bat/watch -> liberar P1
 ```
 
-A homologacao controlada com os PDFs modelo ja foi feita em pasta temporaria, preservando os PDFs de entrada. O proximo teste deve apontar para uma pasta real fora do projeto, igual a estrutura da empresa.
+A homologacao controlada e a homologacao real inicial ja foram feitas fora do repositorio, preservando os PDFs de entrada quando necessario. O proximo teste deve ser no Windows/Excel oficial da operacao.
 
 ## 5. Comandos de verificacao
 

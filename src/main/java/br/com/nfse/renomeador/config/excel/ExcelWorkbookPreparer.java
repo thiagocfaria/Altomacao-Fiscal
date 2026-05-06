@@ -33,6 +33,7 @@ public final class ExcelWorkbookPreparer {
     private static final int CLIENT_COLUMN = 0;
     private static final int CNPJ_COLUMN = 3;
     private static final int REST_COLUMN = 17;
+    private static final int SOURCE_ONLY_COLUMN = 18;
     private static final int LAST_OPERATIONAL_COLUMN = 18;
     private static final int EXTRA_READY_ROWS = 30;
     private static final DefaultIndexedColorMap COLOR_MAP = new DefaultIndexedColorMap();
@@ -183,6 +184,13 @@ public final class ExcelWorkbookPreparer {
         setFill(restStyle, "00B4D8", IndexedColors.TEAL);
         rest.setCellStyle(restStyle);
         rest.setCellValue("CAMINHO REST\n(COLE OU SELECIONE A PASTA)");
+
+        Cell sourceOnly = header.getCell(SOURCE_ONLY_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+        CellStyle sourceOnlyStyle = workbook.createCellStyle();
+        sourceOnlyStyle.cloneStyleFrom(defaultHeader);
+        setFill(sourceOnlyStyle, "7C3AED", IndexedColors.VIOLET);
+        sourceOnly.setCellStyle(sourceOnlyStyle);
+        sourceOnly.setCellValue("SOMENTE ORIGEM");
     }
 
     private static void styleOperationalRows(Workbook workbook, Sheet sheet, int lastReadyRow) {
@@ -273,6 +281,7 @@ public final class ExcelWorkbookPreparer {
                 continue;
             }
             cnpj.setCellStyle(invalidStyle);
+            markSourceOnlyCandidate(row);
             if (cnpj.getCellComment() != null) {
                 continue;
             }
@@ -285,6 +294,17 @@ public final class ExcelWorkbookPreparer {
             comment.setString(helper.createRichTextString("Revisar CNPJ antes de importar para o sistema."));
             comment.setAuthor("Renomeador NFS-e");
             cnpj.setCellComment(comment);
+        }
+    }
+
+    private static void markSourceOnlyCandidate(Row row) {
+        Cell rest = row.getCell(REST_COLUMN, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+        if (rest == null || rest.toString().isBlank()) {
+            return;
+        }
+        Cell sourceOnly = row.getCell(SOURCE_ONLY_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+        if (sourceOnly.toString().isBlank()) {
+            sourceOnly.setCellValue("SIM");
         }
     }
 

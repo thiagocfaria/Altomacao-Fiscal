@@ -82,7 +82,7 @@ public final class InvoiceProcessingPipeline {
 
         try {
             if (!stableFileGuard.isStable(source, stabilityInterval, stabilityChecks)) {
-                return List.of(FileProcessingResult.skipped(companyId, source, "Arquivo ainda nao esta estavel",
+                return List.of(FileProcessingResult.skipped(companyId, source, FileProcessingResult.REASON_UNSTABLE_FILE,
                         elapsedMillis(startedAt)));
             }
 
@@ -210,11 +210,25 @@ public final class InvoiceProcessingPipeline {
         if (invoice.layout() == LayoutType.PORTAL_NACIONAL) {
             var abrasf = index.find(companyId, fiscalKey, LayoutType.ABRASF_ISSNET);
             if (abrasf.isPresent()) {
-                Files.deleteIfExists(abrasf.orElseThrow().destination());
-                return new DuplicateCheck(null, "ABRASF duplicada anterior removida por Portal Nacional equivalente");
+                Path destination = abrasf.orElseThrow().destination();
+                if (canDeleteOperationalDuplicate(companyPath, destination)) {
+                    Files.deleteIfExists(destination);
+                    return new DuplicateCheck(null, "ABRASF duplicada anterior removida por Portal Nacional equivalente");
+                }
+                return new DuplicateCheck(null,
+                        "ABRASF duplicada anterior apontava para fora da pasta da empresa; nao removida automaticamente");
             }
         }
         return DuplicateCheck.none();
+    }
+
+    private static boolean canDeleteOperationalDuplicate(ResolvedCompanyPath companyPath, Path destination) {
+        if (destination == null || destination.toString().isBlank()) {
+            return false;
+        }
+        Path root = companyPath.root().toAbsolutePath().normalize();
+        Path normalizedDestination = destination.toAbsolutePath().normalize();
+        return normalizedDestination.startsWith(root) && Files.isRegularFile(normalizedDestination);
     }
 
     private static void recordFiscalDuplicateIndex(ResolvedCompanyPath companyPath, InvoiceData invoice,
