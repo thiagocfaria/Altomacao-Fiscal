@@ -1,6 +1,7 @@
 package br.com.nfse.renomeador.config.excel;
 
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -177,7 +178,14 @@ public final class ExcelCompanyImporter {
     }
 
     private static String text(Cell cell) {
-        return cell == null ? "" : FORMATTER.formatCellValue(cell).strip();
+        if (cell == null) return "";
+        if (cell.getCellType() == CellType.NUMERIC) {
+            double val = cell.getNumericCellValue();
+            if (val == Math.floor(val) && !Double.isInfinite(val) && Math.abs(val) < 1e15) {
+                return String.valueOf((long) val);
+            }
+        }
+        return FORMATTER.formatCellValue(cell).strip();
     }
 
     private static String normalizeHeader(String value) {

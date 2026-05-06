@@ -7,7 +7,5 @@ target/
 *.tmp
 .DS_Store
 empresas.yaml
-PLANILHA_FISCAL*.xlsm
-PLANILHA_FISCAL*.xlsx
 ~$*
 .~lock.*#
