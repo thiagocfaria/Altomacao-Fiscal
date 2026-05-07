@@ -12,6 +12,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.YearMonth;
 import java.util.Optional;
@@ -85,11 +86,17 @@ public final class App {
                 return Optional.of(spreadsheet);
             }
             Path configParent = config == null ? null : config.toAbsolutePath().normalize().getParent();
-            if (configParent != null) {
-                Path defaultSpreadsheet = configParent.resolve("PLANILHA_FISCAL.xlsm");
-                if (java.nio.file.Files.isRegularFile(defaultSpreadsheet)) {
+            return findDefaultSpreadsheet(configParent);
+        }
+
+        private static Optional<Path> findDefaultSpreadsheet(Path configParent) {
+            Path current = configParent;
+            for (int depth = 0; depth < 3 && current != null; depth++) {
+                Path defaultSpreadsheet = current.resolve("PLANILHA_FISCAL.xlsm");
+                if (Files.isRegularFile(defaultSpreadsheet)) {
                     return Optional.of(defaultSpreadsheet);
                 }
+                current = current.getParent();
             }
             return Optional.empty();
         }
@@ -173,7 +180,7 @@ public final class App {
     }
 
     @Command(name = "preparar-planilha", mixinStandardHelpOptions = true,
-            description = "Cria uma copia profissional da planilha fiscal com DASHBOARD, CADASTRO e CONFIG.")
+            description = "Cria uma copia profissional da planilha fiscal com DASHBOARD, cadastros mensais e CONFIG.")
     public static final class PrepareExcelCommand implements Callable<Integer> {
         @Option(names = "--entrada", required = true, description = "Planilha .xlsx ou .xlsm original.")
         Path input;

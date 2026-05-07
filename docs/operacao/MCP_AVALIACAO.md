@@ -19,7 +19,7 @@ Se houver conflito entre este doc e a config, este doc manda.
 | `jdtls-lsp@claude-plugins-official` v1.0.0 | **ativo** (somente neste projeto) | LSP Java (Eclipse JDT.LS); navegacao de tipo, diagnostico, refactor para .java |
 | `codebase-memory-mcp` | **ativo** (global, ja instalado e ja usado neste projeto) | Grafo de chamadas e dependencias para orientar navegacao e impacto |
 | `rust-analyzer-lsp@claude-plugins-official` | **nao ativo aqui** (global, mas e Rust — sem efeito em .java) | Pertence ao projeto INTERFACE, sem impacto aqui |
-| `lemminx-lsp` (XML) | candidato segunda onda | Util para pom.xml e XSD de NFSe; avaliar quando necessario |
+| `lemminx-lsp` (XML) | candidato segunda onda | Util para `pom.xml`, `RENOMEADOR/pom.xml` e XSD de NFSe; avaliar quando necessario |
 
 ---
 
@@ -79,7 +79,7 @@ Use sempre as mesmas 4 tarefas de referencia:
 - Usa rede: nao em runtime; Maven usa rede apenas para baixar dependencia no build.
 - Onde grava indice/cache/log: nao grava indice proprio; o importador grava apenas o YAML de saida escolhido pelo operador.
 - Toca credencial, segredo, CNPJ de empresa: sim, le CNPJ e caminhos de pastas da planilha; logs nao devem despejar conteudo integral da planilha.
-- Como desligar: remover comandos de importacao Excel e dependencia `org.apache.poi:poi-ooxml` do `pom.xml`.
+- Como desligar: remover comandos de importacao Excel e dependencia `org.apache.poi:poi-ooxml` do `RENOMEADOR/pom.xml`.
 - Como limpar o que criou: apagar YAML gerado pelo operador.
 - Como voltar ao estado anterior: usar `empresas.yaml` manual existente; `batch` e `watch` continuam lendo YAML.
 
@@ -95,7 +95,7 @@ Use sempre as mesmas 4 tarefas de referencia:
 **Versao jdtls:** 1.58.0-202604151538
 
 **Checklist de seguranca:**
-- Le dados locais do workspace Java (.java, pom.xml): sim
+- Le dados locais do workspace Java (.java, `RENOMEADOR/pom.xml`): sim
 - Usa rede: nao (LSP local)
 - Grava indice/cache: sim, workspace do jdtls em `/tmp/jdtls-workspace/` ou similar
 - Toca credencial: nao

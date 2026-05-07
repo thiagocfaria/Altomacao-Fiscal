@@ -36,6 +36,7 @@ class WindowsScriptsTest {
                 "importar-planilha.bat",
                 "validar-config.bat",
                 "rodar-batch-homologacao.bat",
+                "rodar-batch-producao.bat",
                 "rodar-watch.bat"
         };
     }

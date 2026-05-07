@@ -48,6 +48,19 @@ class AppCliTest {
     }
 
     @Test
+    void batchFindsSharedSpreadsheetAtProjectRootWhenConfigIsInModuleOperationFolder(@TempDir Path tempDir)
+            throws Exception {
+        Path moduleOperation = tempDir.resolve("RENOMEADOR").resolve("operacao");
+        Files.createDirectories(moduleOperation);
+        Path spreadsheet = tempDir.resolve("PLANILHA_FISCAL.xlsm");
+        Files.writeString(spreadsheet, "placeholder");
+        App.BatchCommand command = new App.BatchCommand();
+        command.config = moduleOperation.resolve("empresas.yaml");
+
+        assertThat(command.spreadsheet()).contains(spreadsheet);
+    }
+
+    @Test
     void cliReportsOperationalErrorsWithoutJavaStackTrace(@TempDir Path tempDir) throws Exception {
         Path config = tempDir.resolve("empresas.yaml");
         Files.writeString(config, """
