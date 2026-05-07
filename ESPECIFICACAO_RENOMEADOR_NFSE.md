@@ -4,7 +4,7 @@
 
 **Goal:** automatizar o tratamento inicial de PDFs de NFS-e diretamente na estrutura de pastas ja usada por cada empresa, sem copiar arquivos para dentro do repositorio do codigo, separando notas agrupadas, identificando o layout, validando o CNPJ do tomador, detectando retencao, tratando cancelamentos e renomeando o PDF com um nome operacional claro.
 
-**Architecture:** a aplicacao Java ficara em um repositorio externo e sera implantada separadamente na maquina de uso. A V1 deve suportar os dois modos no mesmo binario: `watch`, para vigiar somente as pastas ativas e processar quando um arquivo novo entrar, e `batch`, para execucao manual ou por `.bat`/Agendador do Windows como rede de seguranca. A configuracao sera externa, em cadastro de empresas com CNPJ esperado do tomador, estrategia de pasta mensal e caminhos de destino; o sistema processa direto na pasta da empresa, preserva o original, evita reprocessamento com ledger persistente e manda excecoes para revisao.
+**Architecture:** a aplicacao Java ficara em um repositorio externo e sera implantada separadamente na maquina de uso. A V1 deve suportar os dois modos no mesmo binario: `watch`, para vigiar somente as pastas ativas e processar quando um arquivo novo entrar, e `batch`, para execucao manual ou por `.bat`/Agendador do Windows como rede de seguranca. A configuracao sera externa, em cadastro de empresas com CNPJ esperado do tomador, estrategia de pasta mensal e caminhos de destino; o sistema processa direto na pasta da empresa, nao duplica PDFs em `backend/originais`, evita reprocessamento com ledger persistente e manda excecoes para revisao.
 
 **Tech Stack:** Java 17, Maven, Apache PDFBox, Apache POI, `java.nio.file`, `WatchService`, arquivo externo de configuracao em `.yaml` lido com Jackson YAML, JUnit 5, AssertJ, SLF4J/Logback, Picocli para CLI, `.bat` opcional para modo `batch`. A V1 trabalha apenas com PDFs textuais; PDF sem texto selecionavel suficiente vai para revisao, sem OCR.
 
@@ -26,7 +26,7 @@ Status em 06/05/2026:
 - [x] configuracao externa `empresas.yaml`;
 - [x] processamento `batch` completo com movimentacao;
 - [x] ledger persistente;
-- [x] preservacao de originais;
+- [x] controle operacional sem copia tecnica duplicada de PDFs originais;
 - [x] separacao fisica dos PDFs agrupados por pagina segura;
 - [x] modo `watch`;
 - [x] importacao de planilha Excel para `empresas.yaml`;
@@ -37,7 +37,7 @@ Status em 06/05/2026:
 - [x] retry do watcher para PDF ainda instavel;
 - [x] coluna `SOMENTE ORIGEM` para pastas de origem genericas;
 - [x] teste de integracao automatizado `*IT.java` com PDF real;
-- [x] validacao de CNPJ de tomador duplicado entre empresas de destino ativas;
+- [x] validacao de CNPJ de tomador duplicado entre empresas de destino ativas no mesmo mes operacional;
 - [x] trava de instancia para impedir `batch` e `watch` simultaneos no mesmo `empresas.yaml`;
 - [x] erros operacionais da CLI sem stack trace Java no uso normal;
 - [ ] validacao final no Windows/Excel oficial da operacao.
@@ -61,7 +61,7 @@ O fluxo desejado e este:
 4. se estiver em `batch`, ele faz uma passada unica e termina;
 5. antes de processar, ele espera o PDF estabilizar;
 6. ele confere no ledger se o arquivo ja foi tratado;
-7. ele preserva o original;
+7. ele registra ledger/log tecnico sem criar copia duplicada do PDF original;
 8. ele le o texto do PDF;
 9. ele descobre se ha uma nota ou varias;
 10. ele separa quando houver fronteira confiavel;
@@ -90,7 +90,7 @@ Hoje os PDFs chegam com nomes aleatorios e ficam dispersos na estrutura de pasta
 - separar arquivos com varias notas juntas;
 - reduzir trabalho manual repetitivo.
 
-O projeto resolve isso usando o conteudo real da nota e o contexto da empresa para organizar o documento no lugar certo, com nome padrao, preservando o original e isolando casos duvidosos para revisao humana.
+O projeto resolve isso usando o conteudo real da nota e o contexto da empresa para organizar o documento no lugar certo, com nome padrao, mantendo uma unica copia operacional do PDF e isolando casos duvidosos para revisao humana.
 
 ## 3. Escopo da primeira versao
 
@@ -197,7 +197,7 @@ modo watch ou batch e iniciado
 -> em batch: varre somente as pastas ativas uma vez
 -> ao encontrar PDF candidato, espera o arquivo estabilizar
 -> consulta o ledger tecnico no backend para evitar reprocessamento
--> preserva o original no backend tecnico
+-> nao cria copia tecnica do PDF em backend/originais
 -> extrai o texto do PDF
 -> detecta se ha uma nota ou varias
 -> separa quando houver fronteira confiavel
@@ -223,14 +223,14 @@ modo watch ou batch e iniciado
 - o codigo fica fora da estrutura de documentos das empresas;
 - o processamento acontece diretamente nas pastas da empresa configurada;
 - a REST do cliente deve ficar limitada a entrada, `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/` quando necessario;
-- logs, ledger, originais tecnicos, indice de duplicidade e revisoes tecnicas ficam no `backend/` do sistema;
+- logs, ledger, indice de duplicidade e revisoes tecnicas ficam no `backend/` do sistema; PDFs nao sao duplicados em `backend/originais`;
 - a configuracao deve suportar pasta mensal para evitar varredura desnecessaria;
 - a V1 deve suportar `watch` e `batch`;
 - o cadastro de empresas ja nasce preparado para varias empresas;
 - a homologacao e a ativacao em producao devem acontecer empresa por empresa;
 - a automacao so decide sozinha quando o layout e homologado e os campos obrigatorios forem encontrados;
 - qualquer incerteza tecnica deve ir para backend/revisar, nao para `processados/`;
-- o arquivo original nunca pode ser perdido ou sobrescrito;
+- o arquivo operacional nunca pode ser perdido ou sobrescrito sem registro em ledger/log;
 - a primeira versao sera homologada com um conjunto controlado de PDFs reais;
 - os primeiros layouts foco do piloto serao os PDFs da pasta `NF MODELO ABRASP E PORTAL NACIONAL/`, embora o nome tecnico correto do padrao seja ABRASF;
 - quando o CNPJ do tomador nao corresponder ao CNPJ configurado da empresa, a nota deve receber status `CNPJ INCORRETO PARA REPOSITORIO`;
@@ -404,7 +404,7 @@ Para manter o Java limpo, profissional e facil de evoluir, a implementacao deve 
 - `InputScanner`: encontra PDFs candidatos sem percorrer diretorios desnecessarios.
 - `StableFileGuard`: evita processar arquivo ainda em copia, usando estabilidade de tamanho e tentativa de abertura segura.
 - `ProcessingLedger`: persiste `companyId`, `sourcePath`, `size`, `lastModified`, `sha256`, `statusFinal`, `destinoFinal` e `processedAt`.
-- `OriginalArchiveService`: preserva o PDF original antes de qualquer alteracao.
+- `OriginalArchiveService`: removido na V1.3; o sistema nao duplica PDFs recebidos em `backend/originais`.
 - `PdfTextExtractor`: extrai texto por pagina usando PDFBox.
 - `InvoiceSplitter`: separa PDFs multipagina quando houver uma nota por pagina ou fronteira segura.
 - `LayoutDetector`: classifica Portal Nacional, ABRASF ou nao suportado.
@@ -585,7 +585,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - empresa desabilitada nao e processada;
 - estrategias `atual`, `informado`, `lista` e `direto` resolvem as pastas corretas;
 - caminhos operacionais de entrada, processados e canceladas sao configuraveis;
-- revisar, originais, logs, ledger, indice de duplicidade e area de separacao tecnica ficam derivados no backend do sistema;
+- revisar, logs, ledger, indice de duplicidade e area de separacao tecnica ficam derivados no backend do sistema, sem `backend/originais`;
 - configuracao invalida falha com mensagem clara.
 
 **Testes obrigatorios**
@@ -597,25 +597,24 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - teste de caminho direto sem subpasta mensal;
 - `mvn test`.
 
-### Etapa 6 - Ledger, estabilidade e preservacao do original
+### Etapa 6 - Ledger, estabilidade e controle sem duplicar PDFs
 
-**Objetivo:** garantir que o sistema nao perca original, nao processe arquivo incompleto e nao retrabalhe arquivo ja tratado.
+**Objetivo:** garantir que o sistema nao processe arquivo incompleto, nao retrabalhe arquivo ja tratado e mantenha rastreabilidade por ledger/log sem duplicar PDFs em backend.
 
 **Implementar**
 
 - `StableFileGuard`;
 - `ProcessingLedger`;
 - calculo de `sha256`;
-- `OriginalArchiveService`;
 - politica de reprocessamento.
 
 **Criterios de aceite**
 
 - arquivo ainda em copia nao e processado;
-- original e copiado para `backend/empresas/<empresa_id>/originais/` antes de qualquer movimentacao;
+- PDFs nao sao copiados para `backend/empresas/<empresa_id>/originais/`;
 - ledger registra `companyId`, caminho original, tamanho, data, hash, status, destino e data de processamento;
 - reexecutar o lote nao duplica arquivo nem reprocessa item ja registrado;
-- falha ao preservar original interrompe aquele arquivo e registra erro.
+- operacoes de descarte de duplicata ficam restritas a pastas operacionais controladas e sao registradas no log.
 
 **Testes obrigatorios**
 
@@ -624,7 +623,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - teste de hash;
 - teste de ledger gravando e lendo;
 - teste de reexecucao ignorando item ja processado;
-- teste de preservacao do original em pasta temporaria;
+- teste confirmando que `backend/originais` nao e criado;
 - `mvn test`.
 
 ### Etapa 7 - Processamento batch completo
@@ -767,7 +766,7 @@ A V1 sera considerada pronta quando todos os itens abaixo forem verdadeiros:
 - o sistema suporta `watch` e `batch`;
 - o sistema resolve corretamente a pasta mensal configurada;
 - o sistema nao reprocessa indevidamente arquivo ja registrado no ledger;
-- o original sempre e preservado;
+- o sistema nao cria copia tecnica duplicada de PDFs em `backend/originais`;
 - o sistema consegue ler PDFs textuais homologados;
 - o sistema separa notas agrupadas dos layouts homologados;
 - o sistema extrai os campos obrigatorios definidos;
@@ -831,7 +830,7 @@ Para cada PDF do lote piloto, registrar e validar:
 ### 11.3 Checklist manual de homologacao
 
 - o programa rodou fora do repositorio de desenvolvimento;
-- o PDF original foi preservado no backend tecnico;
+- nenhum PDF foi duplicado em `backend/originais`;
 - a quantidade de notas geradas esta correta;
 - os dados principais batem com o conteudo visual da nota;
 - o CNPJ do tomador bate com o CNPJ esperado da empresa nos casos corretos;
@@ -873,7 +872,7 @@ Qualquer nova prefeitura, nova empresa ou nova regra de negocio so entra em prod
 - **Arquivo travado ou ainda em copia:** aguardar estabilidade, registrar no log e tentar novamente quando aplicavel.
 - **Falha no WatchService ou reinicio do programa:** o `batch` continua sendo rede de seguranca, executado quando o `watch` nao estiver ativo com o mesmo `empresas.yaml`.
 - **Execucao simultanea com o mesmo cadastro:** `batch` e `watch` usam trava por `empresas.yaml`; a segunda instancia deve falhar em vez de competir pelos mesmos PDFs.
-- **CNPJ duplicado em empresas ativas:** bloquear a configuracao para evitar roteamento ambiguo de notas encontradas em pasta errada.
+- **CNPJ duplicado em empresas ativas no mesmo mes operacional:** bloquear a configuracao para evitar roteamento ambiguo de notas encontradas em pasta errada. O mesmo CNPJ pode existir em meses diferentes porque cada aba mensal aponta para caminhos REST proprios.
 - **Permissao insuficiente nas pastas externas:** registrar falha de ambiente e interromper o lote com mensagem clara.
 - **Arquivos com varias notas em sequencia irregular:** se a fronteira da nota nao estiver clara, priorizar seguranca e revisar manualmente.
 - **Dados faltantes no proprio PDF:** o sistema nao inventa informacao; apenas sinaliza revisao.

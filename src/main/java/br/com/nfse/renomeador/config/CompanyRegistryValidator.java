@@ -31,8 +31,8 @@ public final class CompanyRegistryValidator {
                 throw new IllegalArgumentException("CNPJ invalido para empresa " + company.id());
             }
             if (company.enabled() && !company.sourceOnly()) {
-                String taxId = digits(company.customerTaxId());
-                String previous = destinationTaxIds.putIfAbsent(taxId, company.id());
+                String taxIdKey = destinationTaxIdKey(company);
+                String previous = destinationTaxIds.putIfAbsent(taxIdKey, company.id());
                 if (previous != null) {
                     throw new IllegalArgumentException("CNPJ duplicado entre empresas "
                             + previous + " e " + company.id() + ": " + company.customerTaxId());
@@ -97,6 +97,13 @@ public final class CompanyRegistryValidator {
 
     private static String digits(String value) {
         return value == null ? "" : NON_DIGITS.matcher(value).replaceAll("");
+    }
+
+    private static String destinationTaxIdKey(CompanyConfig company) {
+        String taxId = digits(company.customerTaxId());
+        return company.importedMonth()
+                .map(month -> taxId + "|" + month)
+                .orElse(taxId);
     }
 
     private static int checkDigit(String digits, int length) {

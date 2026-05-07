@@ -81,13 +81,13 @@ Atualizado em 07/05/2026.
 - [x] Log operacional registra `duracaoMs` por arquivo.
 - [x] Scripts Windows em `scripts/windows/`, incluindo `compilar.bat` e guarda quando o JAR ainda nao existe.
 - [x] Coluna `SOMENTE ORIGEM` usada para diferenciar pasta de entrada generica de CNPJ invalido digitado errado.
-- [x] Validacao bloqueia CNPJ de tomador duplicado entre empresas de destino ativas.
+- [x] Validacao bloqueia CNPJ de tomador duplicado entre empresas de destino ativas no mesmo mes, mas permite o mesmo CNPJ em meses diferentes do cadastro mensal.
 - [x] `batch` e `watch` usam trava de instancia por `empresas.yaml`, evitando execucao simultanea no mesmo cadastro.
 - [x] CLI exibe erros operacionais como `ERRO: ...`, sem stack trace Java para uso normal.
 - [x] JDK 17 portatil instalado em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`.
 - [x] Maven 3.9.9 portatil instalado em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`.
-- [x] `mvn test` aprovado em 07/05/2026 (segunda vez, pos roteamento por data): 113 testes, 0 falhas.
-- [x] `mvn verify -Pintegration` aprovado em 07/05/2026: 113 testes unitarios + 1 teste de integracao, 0 falhas.
+- [x] `mvn test` aprovado em 07/05/2026 (pos ajuste de validacao mensal): 118 testes, 0 falhas.
+- [x] `mvn verify -Pintegration` aprovado em 07/05/2026: 118 testes unitarios + 1 teste de integracao, 0 falhas.
 - [x] `mvn package` aprovado em 07/05/2026 (segunda vez): 113 testes, 0 falhas.
 - [x] Jar validado com `--help`.
 - [x] Homologacao controlada com PDFs modelo em pasta temporaria.

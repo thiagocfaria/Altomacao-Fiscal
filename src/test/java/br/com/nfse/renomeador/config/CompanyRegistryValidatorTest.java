@@ -5,7 +5,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,6 +75,36 @@ class CompanyRegistryValidatorTest {
     }
 
     @Test
+    void acceptsSameCustomerTaxIdForDifferentImportedMonths() throws Exception {
+        Files.createDirectories(tempDir.resolve("abril"));
+        Files.createDirectories(tempDir.resolve("maio"));
+        CompanyRegistry registry = new CompanyRegistry(List.of(
+                company("empresa_a_abril", tempDir.resolve("abril"), ".", "25.014.360/0001-73",
+                        false, Optional.of(YearMonth.of(2026, 4))),
+                company("empresa_a_maio", tempDir.resolve("maio"), ".", "25.014.360/0001-73",
+                        false, Optional.of(YearMonth.of(2026, 5)))
+        ));
+
+        assertThatCode(() -> new CompanyRegistryValidator().validate(registry)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsSameCustomerTaxIdTwiceForSameImportedMonth() throws Exception {
+        Files.createDirectories(tempDir.resolve("maio_a"));
+        Files.createDirectories(tempDir.resolve("maio_b"));
+        CompanyRegistry registry = new CompanyRegistry(List.of(
+                company("empresa_a_maio", tempDir.resolve("maio_a"), ".", "25.014.360/0001-73",
+                        false, Optional.of(YearMonth.of(2026, 5))),
+                company("empresa_b_maio", tempDir.resolve("maio_b"), ".", "25.014.360/0001-73",
+                        false, Optional.of(YearMonth.of(2026, 5)))
+        ));
+
+        assertThatThrownBy(() -> new CompanyRegistryValidator().validate(registry))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("CNPJ duplicado");
+    }
+
+    @Test
     void acceptsSameCustomerTaxIdForSourceOnlyCompany() throws Exception {
         Files.createDirectories(tempDir.resolve("origem"));
         Files.createDirectories(tempDir.resolve("destino"));
@@ -113,6 +145,11 @@ class CompanyRegistryValidatorTest {
 
     private static CompanyConfig company(String id, Path basePath, String inputFolder, String taxId,
                                          boolean sourceOnly) {
+        return company(id, basePath, inputFolder, taxId, sourceOnly, Optional.empty());
+    }
+
+    private static CompanyConfig company(String id, Path basePath, String inputFolder, String taxId,
+                                         boolean sourceOnly, Optional<YearMonth> importedMonth) {
         return new CompanyConfig(
                 id,
                 true,
@@ -123,7 +160,8 @@ class CompanyRegistryValidatorTest {
                 "{AAAA}/{MM}",
                 new CompanyFolders(inputFolder, "processados", "revisar", "originais", "logs",
                         "revisar/canceladas", "logs/processados.idx"),
-                sourceOnly
+                sourceOnly,
+                importedMonth
         );
     }
 }
