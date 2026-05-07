@@ -8,6 +8,8 @@ import br.com.nfse.renomeador.pipeline.InvoiceProcessingPipeline;
 import br.com.nfse.renomeador.pipeline.ProcessingLogger;
 
 import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.FileLockInterruptionException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,6 +84,9 @@ public final class WatchModeRunner {
                     }
                 }
             }
+        } catch (ClosedByInterruptException | FileLockInterruptionException exception) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedException("Watcher interrompido durante operacao de arquivo");
         }
     }
 

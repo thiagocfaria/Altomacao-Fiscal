@@ -4,6 +4,7 @@ import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.config.ResolvedCompanyPath;
 
 import java.nio.file.Path;
+import java.time.YearMonth;
 
 final class TechnicalPaths {
     private TechnicalPaths() {
@@ -16,7 +17,7 @@ final class TechnicalPaths {
     }
 
     static Path log(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
-        return companyRoot(routes, companyPath).resolve("execucao.log");
+        return companyRoot(routes, companyPath).resolve("execucao-" + YearMonth.now() + ".tsv");
     }
 
     static Path ledger(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
@@ -29,10 +30,6 @@ final class TechnicalPaths {
 
     static Path splitWork(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
         return companyRoot(routes, companyPath).resolve("split-work");
-    }
-
-    static Path originals(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
-        return companyRoot(routes, companyPath).resolve("originais");
     }
 
     static Path review(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {

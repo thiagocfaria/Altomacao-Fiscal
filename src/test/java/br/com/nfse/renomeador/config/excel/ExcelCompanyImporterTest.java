@@ -210,6 +210,22 @@ class ExcelCompanyImporterTest {
     }
 
     @Test
+    void ignoresSourceOnlyMarkerWhenClientHasValidCnpjAndRestPath() throws Exception {
+        Path targetFolder = Files.createDirectories(tempDir.resolve("destino-correto"));
+        Path workbook = dashboardFiscalWorkbook(
+                dashboardRow("Cliente Correto", "25.014.360/0001-73", targetFolder.toString(), "SIM")
+        );
+        Path output = tempDir.resolve("empresas.yaml");
+
+        new ExcelCompanyImporter().importToYaml(workbook, output, "");
+
+        var company = new CompanyRegistryLoader().load(output).companies().get(0);
+        assertThat(company.enabled()).isTrue();
+        assertThat(company.sourceOnly()).isFalse();
+        assertThat(company.basePath()).isEqualTo(targetFolder);
+    }
+
+    @Test
     void rejectsInvalidCnpjWithRestWhenSourceOnlyIsNotExplicit() throws Exception {
         Path wrongFolder = Files.createDirectories(tempDir.resolve("pasta-errada"));
         Path workbook = dashboardFiscalWorkbook(

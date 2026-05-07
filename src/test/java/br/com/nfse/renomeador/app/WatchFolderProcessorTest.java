@@ -15,6 +15,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
 import java.nio.file.WatchEvent;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,7 +38,7 @@ class WatchFolderProcessorTest {
 
         assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
         assertThat(tempDir.resolve("backend").resolve("empresas")
-                .resolve("empresa_piloto").resolve("execucao.log")).exists();
+                .resolve("empresa_piloto").resolve("execucao-" + YearMonth.now() + ".tsv")).exists();
     }
 
     @Test
@@ -50,9 +51,9 @@ class WatchFolderProcessorTest {
 
         new WatchFolderProcessor().processExisting(List.of(first, second), true);
 
-        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("SUMMARY\ttotal=1");
-        assertThat(Files.readString(backendCompany("empresa_vazia").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_vazia")))
                 .contains("SUMMARY\ttotal=0");
     }
 
@@ -127,6 +128,10 @@ class WatchFolderProcessorTest {
 
     private Path backendCompany(String id) {
         return tempDir.resolve("backend").resolve("empresas").resolve(id);
+    }
+
+    private Path operationalLog(String id) {
+        return backendCompany(id).resolve("execucao-" + YearMonth.now() + ".tsv");
     }
 
     private static WatchEvent<Path> event(WatchEvent.Kind<Path> kind, Path context) {

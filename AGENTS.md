@@ -35,7 +35,7 @@ O codigo Java segue responsabilidades separadas por pacote. A V1 ainda nao tem t
 src/main/java/br/com/nfse/renomeador/
 ├── config/      -> empresas.yaml, selecao e resolucao de caminhos
 ├── extraction/  -> servico de extracao e separacao de PDFs
-├── files/       -> hash, estabilidade e preservacao de originais
+├── files/       -> hash e estabilidade de arquivos
 ├── layout/      -> deteccao de layout
 ├── ledger/      -> anti-reprocessamento persistente
 ├── naming/      -> nome final operacional
@@ -81,7 +81,7 @@ A pasta cadastrada em `CAMINHO REST` deve ficar limpa e operacional. O sistema s
 - `canceladas/` para notas canceladas;
 - `TOMADOR NAO ENCONTRADO/` apenas quando a nota caiu em uma REST errada e o CNPJ do tomador nao tem caminho REST ativo no cadastro Excel.
 
-Nao criar `logs/`, `ledger`, `originais/`, `split-work/` ou indices tecnicos dentro da REST do cliente. Esses dados ficam no `backend/` do sistema, ao lado do `empresas.yaml` usado na execucao.
+Nao criar `logs/`, `ledger`, `originais/`, `split-work/` ou indices tecnicos dentro da REST do cliente. Logs operacionais, ledger, indices e temporarios ficam no `backend/` do sistema, ao lado do `empresas.yaml` usado na execucao. Nao voltar a criar `backend/originais`; o sistema nao deve duplicar PDFs recebidos.
 
 Se uma nota ficar em `TOMADOR NAO ENCONTRADO/` e depois o CNPJ do tomador ganhar caminho REST ativo na planilha/cadastro, `batch` e a varredura inicial/reload do `watch` devem recuperar essa nota, mover para a REST correta com o nome operacional normal e apagar `TOMADOR NAO ENCONTRADO/` quando a pasta ficar vazia.
 Se o mesmo PDF ja tiver sido processado no destino correto, a copia pendente em `TOMADOR NAO ENCONTRADO/` deve ser descartada para nao manter duplicidade operacional.
@@ -126,7 +126,7 @@ A ABRASF so pode ser descartada automaticamente quando todos estes campos fiscai
 - valor liquido.
 
 Horario de emissao nao entra na chave de duplicidade da V1.
-O PDF original recebido continua preservado no `backend/` tecnico do sistema; o descarte automatico remove somente copia operacional duplicada em pasta controlada.
+O sistema nao cria copia tecnica do PDF original em `backend/originais`; o descarte automatico remove somente copia operacional duplicada em pasta controlada e deve registrar a decisao no log operacional.
 
 Notas duplicadas no mesmo layout tambem nao devem gerar duas copias operacionais. O sistema so pode descartar/remover duplicata quando a chave fiscal completa bater e o arquivo a remover estiver em uma pasta operacional controlada pelo sistema.
 

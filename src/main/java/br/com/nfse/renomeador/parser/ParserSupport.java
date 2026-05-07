@@ -109,6 +109,8 @@ final class ParserSupport {
                     || normalized.contains("CODIGO")
                     || normalized.contains("RESPONSAVEL")
                     || normalized.contains("DADOS DO PRESTADOR")
+                    || normalized.contains("PRESTADOR DE SERVICOS")
+                    || normalized.contains("TOMADOR DE SERVICOS")
                     || normalized.contains("INSCRICAO MUNICIPAL")
                     || normalized.contains("CPF/CNPJ")
                     || normalized.contains("CEP ")

@@ -135,7 +135,7 @@ class ExcelWorkbookPreparerTest {
             assertThat(fillArgb(sheet, 1, 17)).isEqualTo("FF00B4D8");
             assertThat(sheet.getRow(2).getCell(17).getStringCellValue()).isEqualTo("/dados/clientes/dga");
             assertThat(sheet.getRow(2).getCell(19).getStringCellValue()).isEqualTo("/certificados/dga.pfx");
-            assertThat(sheet.getRow(2).getCell(22).getStringCellValue()).isEqualTo("SIM");
+            assertThat(sheet.getRow(2).getCell(22).toString()).isBlank();
             assertThat(sheet.isColumnHidden(19)).isFalse();
             assertThat(sheet.isColumnHidden(20)).isFalse();
             assertThat(sheet.isColumnHidden(21)).isFalse();
@@ -168,7 +168,7 @@ class ExcelWorkbookPreparerTest {
             assertThat(may.getRow(2).getCell(17).getStringCellValue()).isBlank();
             assertThat(may.getRow(2).getCell(18).getStringCellValue()).isBlank();
             assertThat(may.getRow(2).getCell(19).getStringCellValue()).isEqualTo("/certificados/dga.pfx");
-            assertThat(may.getRow(2).getCell(22).getStringCellValue()).isEqualTo("SIM");
+            assertThat(may.getRow(2).getCell(22).toString()).isBlank();
             assertThat(may.getRow(2).getCell(30).toString()).isBlank();
 
             var config = prepared.getSheet("CONFIG");
@@ -207,6 +207,44 @@ class ExcelWorkbookPreparerTest {
         try (XSSFWorkbook prepared = new XSSFWorkbook(Files.newInputStream(second))) {
             assertThat(prepared.getSheet("CADASTRO ABRIL").getRow(2).getCell(3).getCellComment()).isNotNull();
             assertThat(prepared.getSheetAt(0).getSheetName()).isEqualTo("DASHBOARD");
+        }
+    }
+
+    @Test
+    void keepsValidNumericCnpjAsNormalClientRow() throws Exception {
+        Path input = tempDir.resolve("entrada-cnpj-numerico.xlsm");
+        Path output = tempDir.resolve("saida-cnpj-numerico.xlsm");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); OutputStream out = Files.newOutputStream(input)) {
+            Sheet sheet = workbook.createSheet("Dashboard Fiscal");
+            Row header = sheet.createRow(1);
+            header.createCell(0).setCellValue("CLIENTE");
+            header.createCell(3).setCellValue("CNPJ");
+            header.createCell(17).setCellValue("CAMINHO REST");
+            header.createCell(19).setCellValue("SOMENTE ORIGEM");
+
+            Row valid = sheet.createRow(2);
+            valid.createCell(0).setCellValue("Cliente Numerico");
+            valid.createCell(3).setCellValue(25014360000173D);
+            valid.createCell(17).setCellValue("/dados/clientes/numerico");
+            valid.createCell(19).setCellValue("SIM");
+
+            Row invalid = sheet.createRow(3);
+            invalid.createCell(0).setCellValue("Cliente Invalido");
+            invalid.createCell(3).setCellValue(123D);
+            invalid.createCell(17).setCellValue("/dados/clientes/invalido");
+            workbook.write(out);
+        }
+
+        new ExcelWorkbookPreparer().prepare(input, output);
+
+        try (XSSFWorkbook prepared = new XSSFWorkbook(Files.newInputStream(output))) {
+            Sheet sheet = prepared.getSheet("CADASTRO ABRIL");
+            assertThat(fillArgb(sheet, 2, 3)).isNotEqualTo("FFFFF2B8");
+            assertThat(sheet.getRow(2).getCell(3).getCellComment()).isNull();
+            assertThat(sheet.getRow(2).getCell(22).toString()).isBlank();
+            assertThat(fillArgb(sheet, 3, 3)).isEqualTo("FFFFF2B8");
+            assertThat(sheet.getRow(2).getCell(23).getCellFormula())
+                    .contains("TEXT(D3,\"00000000000000\")");
         }
     }
 

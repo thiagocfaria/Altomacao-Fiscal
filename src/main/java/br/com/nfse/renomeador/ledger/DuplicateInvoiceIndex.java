@@ -3,6 +3,9 @@ package br.com.nfse.renomeador.ledger;
 import br.com.nfse.renomeador.layout.LayoutType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,36 +17,50 @@ import java.util.Optional;
 
 public final class DuplicateInvoiceIndex {
     private final Path indexFile;
+    private final Object lock = new Object();
+    private List<Entry> loadedEntries;
 
     public DuplicateInvoiceIndex(Path indexFile) {
         this.indexFile = indexFile;
     }
 
     public void record(String companyId, String fiscalKey, LayoutType layout, Path destination) throws IOException {
-        if (indexFile.getParent() != null) {
-            Files.createDirectories(indexFile.getParent());
+        synchronized (lock) {
+            if (indexFile.getParent() != null) {
+                Files.createDirectories(indexFile.getParent());
+            }
+            Entry entry = new Entry(companyId, fiscalKey, layout, destination, Instant.now());
+            appendLineWithFileLock(entry);
+            if (loadedEntries != null) {
+                List<Entry> updatedEntries = new ArrayList<>(loadedEntries);
+                updatedEntries.add(entry);
+                loadedEntries = List.copyOf(updatedEntries);
+            }
         }
-        Entry entry = new Entry(companyId, fiscalKey, layout, destination, Instant.now());
-        Files.writeString(indexFile, serialize(entry) + System.lineSeparator(), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
     public Optional<Entry> find(String companyId, String fiscalKey, LayoutType layout) throws IOException {
-        List<Entry> entries = entries();
-        for (int index = entries.size() - 1; index >= 0; index--) {
-            Entry entry = entries.get(index);
-            if (entry.companyId().equals(companyId)
-                    && entry.fiscalKey().equals(fiscalKey)
-                    && entry.layout() == layout) {
-                return Optional.of(entry);
+        synchronized (lock) {
+            List<Entry> entries = entries();
+            for (int index = entries.size() - 1; index >= 0; index--) {
+                Entry entry = entries.get(index);
+                if (entry.companyId().equals(companyId)
+                        && entry.fiscalKey().equals(fiscalKey)
+                        && entry.layout() == layout) {
+                    return Optional.of(entry);
+                }
             }
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     private List<Entry> entries() throws IOException {
+        if (loadedEntries != null) {
+            return loadedEntries;
+        }
         if (!Files.exists(indexFile)) {
-            return List.of();
+            loadedEntries = List.of();
+            return loadedEntries;
         }
         List<Entry> entries = new ArrayList<>();
         for (String line : Files.readAllLines(indexFile, StandardCharsets.UTF_8)) {
@@ -51,7 +68,17 @@ public final class DuplicateInvoiceIndex {
                 entries.add(deserialize(line));
             }
         }
-        return List.copyOf(entries);
+        loadedEntries = List.copyOf(entries);
+        return loadedEntries;
+    }
+
+    private void appendLineWithFileLock(Entry entry) throws IOException {
+        try (FileChannel channel = FileChannel.open(indexFile,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+             FileLock ignored = channel.lock()) {
+            byte[] bytes = (serialize(entry) + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+            channel.write(ByteBuffer.wrap(bytes));
+        }
     }
 
     private static String serialize(Entry entry) {

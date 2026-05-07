@@ -89,7 +89,7 @@ Ainda pendente para liberar operacao:
 - Java 17 instalado ou portatil.
 - Maven 3.9+ apenas para compilar/testar o projeto. Para rodar o `.jar` pronto, Maven nao e necessario.
 - Acesso de escrita nas subpastas operacionais que o sistema cria ou usa: `processados/`, `RETIDO/`, `canceladas/` e, quando necessario, `TOMADOR NAO ENCONTRADO/`.
-- Acesso de escrita na pasta do `empresas.yaml`, onde o sistema cria `backend/` com logs, ledger, originais tecnicos e indices.
+- Acesso de escrita na pasta do `empresas.yaml`, onde o sistema cria `backend/` com logs operacionais, ledger e indices tecnicos. O sistema nao duplica PDFs originais no backend.
 - PDFs textuais. PDF escaneado/imagem sem texto selecionavel vai para revisao; a V1 nao usa OCR.
 
 ### Dependencias Java do projeto
@@ -182,13 +182,13 @@ Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codi
 
 Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for a pasta de PDFs modelo do projeto (`NF MODELO ABRASP E PORTAL NACIONAL/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
 
-A planilha de trabalho do projeto e `PLANILHA_FISCAL.xlsm`. Ela preserva o VBA da planilha original e agora e preparada em tres abas: `DASHBOARD`, com painel contabil inicial; `CADASTRO`, com os dados que alimentam o sistema; e `CONFIG`, com listas, paleta e contadores operacionais que o futuro importador podera atualizar. O `CADASTRO` mantem filtros, cabecalho congelado, `CNPJ` e caminhos como texto, `CAMINHO REST` destacado, `CAMINHO ENTRADAS`, `CAMINHO SAIDAS`, `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL`, `SENHA CERTIFICADO DIGITAL` opcional e `SOMENTE ORIGEM` para pastas que nao sao destino.
+A planilha de trabalho do projeto e `PLANILHA_FISCAL.xlsm`. Ela preserva o VBA da planilha original e agora e preparada em tres abas: `DASHBOARD`, com painel contabil inicial; `CADASTRO`, com os dados que alimentam o sistema; e `CONFIG`, com listas, paleta e contadores operacionais que o futuro importador podera atualizar. O `CADASTRO` mantem filtros, cabecalho congelado, `CNPJ` e caminhos como texto, `CAMINHO REST` destacado, `CAMINHO ENTRADAS`, `CAMINHO SAIDAS`, `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL`, `SENHA CERTIFICADO DIGITAL` opcional e `SOMENTE ORIGEM` apenas para casos excepcionais de pasta generica com CNPJ invalido.
 
 O campo de senha do certificado fica fora do dashboard. Excel nao e cofre de senha; se esse campo for usado em producao, proteja o arquivo e limite o acesso a pasta da planilha.
 
 Mantenha apenas essa planilha modelo como planilha operacional local do projeto. A planilha bruta/original serve somente como entrada para recriar o modelo quando chegar uma versao nova; planilhas fiscais com dados de clientes nao devem ser publicadas no GitHub.
 
-O sistema importa a aba `CADASTRO` para `empresas.yaml`; em planilhas antigas, continua aceitando a aba `Dashboard Fiscal`. O `batch` e o `watch` rodam sobre esse YAML validado. Se `batch` ou `watch` forem chamados com `--planilha`, eles atualizam o `empresas.yaml` a partir da planilha antes de processar. No `watch`, salvar a planilha informada em `--planilha` faz o cadastro ser reimportado e os novos caminhos REST passam a ser observados.
+O sistema importa a aba `CADASTRO` para `empresas.yaml`; em planilhas antigas, continua aceitando a aba `Dashboard Fiscal`. O `batch` e o `watch` rodam sobre esse YAML validado. Se `batch` ou `watch` forem chamados com `--planilha`, eles atualizam o `empresas.yaml` a partir da planilha antes de processar. Se `--planilha` nao for informado, mas existir `PLANILHA_FISCAL.xlsm` na mesma pasta do `empresas.yaml`, essa planilha padrao tambem sera importada automaticamente. No `watch`, salvar a planilha informada, ou a planilha padrao ao lado do config, faz o cadastro ser reimportado e os novos caminhos REST passam a ser observados.
 
 Cabecalhos obrigatorios:
 
@@ -207,9 +207,9 @@ O `DASHBOARD` nao e fonte de importacao: ele mostra a tela inicial da operacao c
 
 O campo `CNPJ` da planilha sempre representa o CNPJ esperado do tomador da NFS-e. O CNPJ do prestador tambem aparece dentro da nota, mas ele nao decide qual pasta REST deve receber o PDF.
 
-O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST e tratado como a pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas operacionais `processados/`, `RETIDO/`, `canceladas/` e, quando necessario, `TOMADOR NAO ENCONTRADO/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento.
+O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST preenchido e tratado como pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas operacionais `processados/`, `RETIDO/`, `canceladas/` e, quando necessario, `TOMADOR NAO ENCONTRADO/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento. Quando um novo `CAMINHO REST` for preenchido na planilha, a proxima execucao com a planilha importada passa a processar esse caminho automaticamente, sem alterar codigo.
 
-A coluna `SOMENTE ORIGEM` deve receber `SIM` somente para uma pasta de entrada generica ou pasta errada de teste. Essa linha sera monitorada como origem, mas nunca sera usada como destino por CNPJ. Se houver CNPJ invalido com `CAMINHO REST` preenchido e `SOMENTE ORIGEM` vazio, a importacao falha para evitar esconder erro de digitacao.
+A coluna `SOMENTE ORIGEM` nao deve ser usada para clientes normais. Para CNPJ valido com `CAMINHO REST` preenchido, o importador ignora qualquer `SIM` nessa coluna e cadastra a linha como destino ativo. Ela existe apenas para pasta generica ou pasta errada de teste com CNPJ invalido; nesse caso a linha sera monitorada como origem, mas nunca sera usada como destino por CNPJ. Se houver CNPJ invalido com `CAMINHO REST` preenchido e `SOMENTE ORIGEM` vazio, a importacao falha para evitar esconder erro de digitacao.
 
 O mesmo CNPJ de tomador nao pode aparecer em duas empresas de destino ativas. Essa validacao evita que uma nota em pasta errada seja roteada para a REST errada quando houver cadastro duplicado na planilha.
 
@@ -315,13 +315,15 @@ Os arquivos tecnicos ficam no backend ao lado do `empresas.yaml` usado na execuc
 backend/
   empresas/
     <empresa_id>/
-      execucao.log
+      execucao-AAAA-MM.tsv
+      execucao-AAAA-MM.tsv.gz
       processados.idx
       duplicadas.idx
-      originais/
       revisar/
       split-work/
 ```
+
+O mes atual fica em TSV para consulta direta. Meses fechados sao compactados automaticamente em `.gz`. O sistema mantem ate 12 meses de logs operacionais por empresa e tambem aplica limite de 100 MB por empresa, apagando os logs mais antigos quando passar desse teto. `processados.idx` e `duplicadas.idx` nao sao copias de PDF; sao indices pequenos usados para impedir reprocessamento e duplicidade fiscal.
 
 ### Duplicidade Portal Nacional x ABRASF
 
@@ -337,7 +339,7 @@ A ABRASF so e descartada automaticamente quando todos estes campos extraidos for
 - valor do servico;
 - valor liquido.
 
-O horario de emissao nao entra nessa comparacao, porque pode variar entre modelos. Se algum campo fiscal for diferente, os dois PDFs sao mantidos para conferencia. O PDF recebido continua preservado em `backend/empresas/<empresa_id>/originais/`; o descarte remove somente duplicidade operacional em pasta controlada.
+O horario de emissao nao entra nessa comparacao, porque pode variar entre modelos. Se algum campo fiscal for diferente, os dois PDFs sao mantidos para conferencia. O sistema nao cria copia tecnica do PDF original em `backend/originais`; o descarte remove somente duplicidade operacional em pasta controlada e registra a decisao no log operacional.
 
 ## Compatibilidade com caminhos grandes
 

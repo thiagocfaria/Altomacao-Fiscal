@@ -55,7 +55,7 @@ Use sempre as mesmas 4 tarefas de referencia:
 
 1. Rastrear `PortalNacionalParser` ate o ponto de uso em `InvoiceProcessingPipeline`
 2. Mapear blast radius ao mexer em `InvoiceData`
-3. Localizar o caminho do arquivo desde `WatchModeRunner`/`WatchFolderProcessor` ate `DestinationService` e `OriginalArchiveService`
+3. Localizar o caminho do arquivo desde `WatchModeRunner`/`WatchFolderProcessor` ate `DestinationService`
 4. Responder pergunta arquitetural sem abrir arquivos demais
 
 ### Regra de promocao

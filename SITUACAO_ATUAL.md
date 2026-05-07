@@ -4,7 +4,7 @@ Atualizado em 07/05/2026.
 
 ## 1. Onde estamos
 
-**Fase:** V1.2 de limpeza operacional implementada e validada em testes unitarios e de integracao. A pasta REST do cliente agora fica focada em saidas operacionais, enquanto logs, ledger, originais tecnicos e indices ficam no backend do sistema.
+**Fase:** V1.3 de limpeza operacional e controle de armazenamento implementada. A pasta REST do cliente fica focada em saidas operacionais, enquanto logs compactaveis, ledger e indices ficam no backend do sistema sem duplicar PDFs originais.
 
 - Repositorio Git inicializado e preparado para publicar no GitHub.
 - Projeto Java 17/Maven criado em `src/main/java`.
@@ -29,7 +29,7 @@ Atualizado em 07/05/2026.
 - [x] Ledger persistente basico.
 - [x] Hash SHA-256.
 - [x] Guarda de estabilidade de arquivo.
-- [x] Preservacao de original com colisao.
+- [x] Processamento sem sobrescrever PDF original; o arquivo vai para destino operacional ou revisao, sem copia tecnica duplicada no backend.
 - [x] Logback configurado.
 - [x] Jar Maven empacotado com dependencias.
 - [x] `InputScanner`.
@@ -62,7 +62,8 @@ Atualizado em 07/05/2026.
 - [x] Nota pendente em `TOMADOR NAO ENCONTRADO/` e recuperada quando o tomador ganha caminho REST ativo; a pasta pendente e apagada se ficar vazia.
 - [x] Copia pendente em `TOMADOR NAO ENCONTRADO/` e descartada quando o mesmo PDF ja consta processado no destino correto.
 - [x] Nota roteada da REST errada para a REST correta agora registra log operacional e ledger no backend do cadastro correto.
-- [x] Logs, ledger, indice de duplicidade, originais tecnicos e `split-work` movidos para `backend/empresas/<empresa_id>/`.
+- [x] Logs, ledger, indice de duplicidade e `split-work` movidos para `backend/empresas/<empresa_id>/`, sem pasta `originais` duplicando PDFs.
+- [x] Logs operacionais mensais com compactacao automatica de meses fechados e retencao limitada a 12 meses/100 MB por empresa.
 - [x] Notas retidas agora vao para `RETIDO/`; canceladas vao para `canceladas/`.
 - [x] Diagnostico tecnico da planilha modelo confirma pacote `.xlsm` macro-habilitado com `vbaProject.bin`, `Worksheet_BeforeDoubleClick` e `FileDialogFolderPicker`; se o duplo clique nao funcionar no Windows, verificar bloqueio de macros/confianca do Excel.
 - [x] `PLANILHA_FISCAL.xlsm` agora usa abas `DASHBOARD`, `CADASTRO ABRIL`, `CADASTRO MAIO`, `CADASTRO JUNHO`, `CADASTRO JULHO`, `CADASTRO AGOSTO`, `CADASTRO SETEMBRO`, `CADASTRO OUTUBRO`, `CADASTRO NOVEMBRO`, `CADASTRO DEZEMBRO` e `CONFIG`; `CADASTRO ABRIL` preserva os dados/caminhos atuais e as abas futuras copiam clientes/dados fixos sem copiar caminhos mensais.
@@ -161,4 +162,4 @@ Log operacional: gerado
 Reexecucao: Processados=0 OK=0 Canceladas=0 Ignorados=10 Erros=0
 ```
 
-Esse resultado e historico da homologacao anterior. Na regra atual da V1.2, `originais`, `ledger`, log e revisoes tecnicas ficam em `backend/empresas/<empresa_id>/`; a REST do cliente fica limitada a `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/` quando necessario.
+Esse resultado e historico da homologacao anterior. Na regra atual, `ledger`, log e revisoes tecnicas ficam em `backend/empresas/<empresa_id>/`, mas PDFs originais nao sao duplicados em `backend/originais`; a REST do cliente fica limitada a `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/` quando necessario.

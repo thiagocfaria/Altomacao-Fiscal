@@ -18,6 +18,7 @@ public final class AbrasfIssnetParser implements InvoiceParser {
     private static final Pattern CUSTOMER_NAME = Pattern.compile("(?m)Raz[aã]o Social\\s*:\\s*(.+)$");
     private static final Pattern NAME_AFTER_NOME_RAZAO = Pattern.compile("(?m)Nome/Raz[aã]o:\\s*(.+)$");
     private static final Pattern RAZAO_SOCIAL_UPPER = Pattern.compile("(?m)RAZAO SOCIAL:\\s*(.+)$");
+    private static final Pattern RAZAO_SOCIAL_MIXED = Pattern.compile("(?m)Raz[aã]o Social\\s*:\\s*(.+)$");
     private static final Pattern NOME_RAZAO_SOCIAL_UPPER = Pattern.compile("(?m)NOME/RAZAO SOCIAL:\\s*(.+)$");
     private static final Pattern MUNICIPAL_SERVICE_VALUE = Pattern.compile("VALOR DOS SERVICOS\\s*R\\$\\s*([0-9.]+,[0-9]{2})");
     private static final Pattern MUNICIPAL_NET_VALUE = Pattern.compile("VALOR LIQUIDO\\s*R\\$\\s*([0-9.]+,[0-9]{2})");
@@ -106,6 +107,10 @@ public final class AbrasfIssnetParser implements InvoiceParser {
             return provider;
         }
         Matcher matcher = RAZAO_SOCIAL_UPPER.matcher(prestador);
+        if (matcher.find()) {
+            return ParserSupport.cleanName(matcher.group(1));
+        }
+        matcher = RAZAO_SOCIAL_MIXED.matcher(prestador);
         if (matcher.find()) {
             return ParserSupport.cleanName(matcher.group(1));
         }

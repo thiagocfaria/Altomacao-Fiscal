@@ -8,7 +8,6 @@ import br.com.nfse.renomeador.extraction.ExtractionResult;
 import br.com.nfse.renomeador.extraction.InvoiceExtractionService;
 import br.com.nfse.renomeador.extraction.InvoiceSplitter;
 import br.com.nfse.renomeador.files.FileHashService;
-import br.com.nfse.renomeador.files.OriginalArchiveService;
 import br.com.nfse.renomeador.files.StableFileGuard;
 import br.com.nfse.renomeador.layout.LayoutType;
 import br.com.nfse.renomeador.ledger.DuplicateInvoiceIndex;
@@ -31,11 +30,13 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeoutException;
 
 public final class InvoiceProcessingPipeline {
+    public static final long MAX_FILE_SIZE_BYTES = 500L * 1024L * 1024L;
+
     private final StableFileGuard stableFileGuard;
     private final FileHashService hashService;
-    private final OriginalArchiveService archiveService;
     private final InvoiceExtractionService extractionService;
     private final InvoiceSplitter splitter;
     private final PdfTextExtractor textExtractor;
@@ -43,21 +44,21 @@ public final class InvoiceProcessingPipeline {
     private final FileNameBuilder fileNameBuilder;
     private final Duration stabilityInterval;
     private final int stabilityChecks;
+    private final ProcessingStateRegistry processingStateRegistry;
 
     public InvoiceProcessingPipeline() {
-        this(new StableFileGuard(), new FileHashService(), new OriginalArchiveService(),
-                new InvoiceExtractionService(), new InvoiceSplitter(), new PdfTextExtractor(),
-                new DestinationService(), new FileNameBuilder(), Duration.ofMillis(200), 2);
+        this(new StableFileGuard(), new FileHashService(), new InvoiceExtractionService(), new InvoiceSplitter(), new PdfTextExtractor(),
+                new DestinationService(), new FileNameBuilder(), Duration.ofMillis(200), 2,
+                new ProcessingStateRegistry());
     }
 
     InvoiceProcessingPipeline(StableFileGuard stableFileGuard, FileHashService hashService,
-                              OriginalArchiveService archiveService, InvoiceExtractionService extractionService,
-                              InvoiceSplitter splitter, PdfTextExtractor textExtractor,
+                              InvoiceExtractionService extractionService, InvoiceSplitter splitter, PdfTextExtractor textExtractor,
                               DestinationService destinationService, FileNameBuilder fileNameBuilder,
-                              Duration stabilityInterval, int stabilityChecks) {
+                              Duration stabilityInterval, int stabilityChecks,
+                              ProcessingStateRegistry processingStateRegistry) {
         this.stableFileGuard = stableFileGuard;
         this.hashService = hashService;
-        this.archiveService = archiveService;
         this.extractionService = extractionService;
         this.splitter = splitter;
         this.textExtractor = textExtractor;
@@ -65,6 +66,7 @@ public final class InvoiceProcessingPipeline {
         this.fileNameBuilder = fileNameBuilder;
         this.stabilityInterval = stabilityInterval;
         this.stabilityChecks = stabilityChecks;
+        this.processingStateRegistry = processingStateRegistry;
     }
 
     public List<FileProcessingResult> process(InputCandidate candidate, boolean preserveInput) {
@@ -77,8 +79,8 @@ public final class InvoiceProcessingPipeline {
         ResolvedCompanyPath companyPath = candidate.companyPath();
         Path source = candidate.source();
         String companyId = companyPath.company().id();
-        ProcessingLedger ledger = new ProcessingLedger(TechnicalPaths.ledger(routes, companyPath));
-        ProcessingLedger legacyLedger = new ProcessingLedger(PathsForCompany.ledger(companyPath));
+        ProcessingLedger ledger = processingStateRegistry.ledger(TechnicalPaths.ledger(routes, companyPath));
+        ProcessingLedger legacyLedger = processingStateRegistry.ledger(PathsForCompany.ledger(companyPath));
         long size = -1L;
         Instant lastModified = Instant.EPOCH;
         String sha256 = "";
@@ -91,6 +93,20 @@ public final class InvoiceProcessingPipeline {
 
             size = Files.size(source);
             lastModified = Files.getLastModifiedTime(source).toInstant();
+            if (size > MAX_FILE_SIZE_BYTES) {
+                FileProcessingResult result = handleOversizedFile(companyPath, source, preserveInput, routes, size);
+                ledger.record(new LedgerEntry(
+                        companyId,
+                        source,
+                        size,
+                        lastModified,
+                        "",
+                        "ERROR",
+                        result.destination() == null ? Path.of("") : result.destination(),
+                        Instant.now()
+                ));
+                return List.of(result.withDurationMillis(elapsedMillis(startedAt)));
+            }
             sha256 = hashService.sha256(source);
             if (ledger.hasProcessed(companyId, source, size, lastModified, sha256)
                     || legacyLedger.hasProcessed(companyId, source, size, lastModified, sha256)) {
@@ -98,7 +114,6 @@ public final class InvoiceProcessingPipeline {
                         FileProcessingResult.REASON_ALREADY_REGISTERED, elapsedMillis(startedAt)));
             }
 
-            archiveService.archive(source, TechnicalPaths.originals(routes, companyPath));
             List<FileProcessingResult> results = processWorkFiles(source, companyPath, preserveInput, routes);
             ledger.record(new LedgerEntry(
                     companyId,
@@ -207,8 +222,8 @@ public final class InvoiceProcessingPipeline {
         if (fiscalKey.isBlank()) {
             return DuplicateCheck.none();
         }
-        DuplicateInvoiceIndex index = new DuplicateInvoiceIndex(TechnicalPaths.duplicateIndex(routes, companyPath));
-        DuplicateInvoiceIndex legacyIndex = new DuplicateInvoiceIndex(PathsForCompany.logs(companyPath).resolve("duplicadas.idx"));
+        DuplicateInvoiceIndex index = processingStateRegistry.duplicateIndex(TechnicalPaths.duplicateIndex(routes, companyPath));
+        DuplicateInvoiceIndex legacyIndex = processingStateRegistry.duplicateIndex(PathsForCompany.logs(companyPath).resolve("duplicadas.idx"));
         String companyId = companyPath.company().id();
         var portal = findDuplicate(index, legacyIndex, companyId, fiscalKey, LayoutType.PORTAL_NACIONAL);
         var abrasf = findDuplicate(index, legacyIndex, companyId, fiscalKey, LayoutType.ABRASF_ISSNET);
@@ -280,13 +295,13 @@ public final class InvoiceProcessingPipeline {
         return file.startsWith(directory.toAbsolutePath().normalize());
     }
 
-    private static void recordFiscalDuplicateIndex(ResolvedCompanyPath companyPath, InvoiceData invoice,
-                                                   Path destination, CompanyRouteDirectory routes) throws IOException {
+    private void recordFiscalDuplicateIndex(ResolvedCompanyPath companyPath, InvoiceData invoice,
+                                            Path destination, CompanyRouteDirectory routes) throws IOException {
         String fiscalKey = fiscalDuplicateKey(invoice);
         if (fiscalKey.isBlank()) {
             return;
         }
-        new DuplicateInvoiceIndex(TechnicalPaths.duplicateIndex(routes, companyPath))
+        processingStateRegistry.duplicateIndex(TechnicalPaths.duplicateIndex(routes, companyPath))
                 .record(companyPath.company().id(), fiscalKey, invoice.layout(), destination);
     }
 
@@ -375,6 +390,33 @@ public final class InvoiceProcessingPipeline {
         }
     }
 
+    public List<FileProcessingResult> timeoutResult(InputCandidate candidate, boolean preserveInput,
+                                                    CompanyRouteDirectory routes, long timeoutSeconds) {
+        Instant startedAt = Instant.now();
+        String reason = "Timeout de " + timeoutSeconds + "s excedido";
+        TimeoutException exception = new TimeoutException(reason);
+        FileProcessingResult result = handleTechnicalError(candidate.companyPath(), candidate.source(),
+                preserveInput, routes, exception);
+        return List.of(result.withDurationMillis(elapsedMillis(startedAt)));
+    }
+
+    private FileProcessingResult handleOversizedFile(ResolvedCompanyPath companyPath, Path source,
+                                                     boolean preserveInput, CompanyRouteDirectory routes,
+                                                     long size) {
+        try {
+            String fileName = "ARQUIVO_MUITO_GRANDE_" + source.getFileName();
+            DestinationResult destination = destinationService.sendToReview(source, companyPath, fileName,
+                    preserveInput, routes);
+            String reason = "Arquivo excede limite de " + (MAX_FILE_SIZE_BYTES / 1_048_576L)
+                    + "MB: " + (size / 1_048_576L) + "MB";
+            return FileProcessingResult.failed(companyPath.company().id(), source, reason,
+                    destination.destination(), new IllegalArgumentException(reason));
+        } catch (Exception moveException) {
+            return FileProcessingResult.failed(companyPath.company().id(), source,
+                    "Arquivo excede limite de tamanho; falha ao mover para revisao", null, moveException);
+        }
+    }
+
     private static InvoiceData placeholderInvoice(ExtractionResult extraction) {
         return new InvoiceData(extraction.layout(), "", "", "", "", "", "",
                 null, null, false, false);
@@ -429,6 +471,47 @@ public final class InvoiceProcessingPipeline {
         }
     }
 
+    public int repairMisnamedOutputFiles(ResolvedCompanyPath companyPath) {
+        int count = 0;
+        count += repairFolder(PathsForCompany.processed(companyPath), ProcessingStatus.OK);
+        count += repairFolder(companyPath.root().resolve(DestinationService.RETAINED_FOLDER), ProcessingStatus.OK);
+        count += repairFolder(PathsForCompany.cancelled(companyPath), ProcessingStatus.CANCELLED);
+        return count;
+    }
+
+    private int repairFolder(Path folder, ProcessingStatus status) {
+        if (!Files.isDirectory(folder)) return 0;
+        int count = 0;
+        try (var stream = Files.list(folder)) {
+            List<Path> files = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
+                    .toList();
+            for (Path file : files) {
+                try {
+                    if (repairFileIfNeeded(file, status)) count++;
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        return count;
+    }
+
+    private boolean repairFileIfNeeded(Path file, ProcessingStatus status) throws IOException {
+        ExtractionResult extraction = extractionService.extract(file);
+        if (extraction.invoice().isEmpty()) return false;
+        InvoiceData invoice = extraction.invoice().orElseThrow();
+        if (invoice.providerName().isBlank()) return false;
+        String correctName = fileNameBuilder.build(invoice, status);
+        String currentName = file.getFileName().toString();
+        if (currentName.equals(correctName)) return false;
+        Path newPath = file.getParent().resolve(correctName);
+        if (Files.exists(newPath)) return false;
+        Files.move(file, newPath);
+        return true;
+    }
+
     private static void recordTechnicalFailureIfPossible(ProcessingLedger ledger, String companyId, Path source,
                                                          long size, Instant lastModified, String sha256,
                                                          FileProcessingResult result) {
@@ -451,9 +534,9 @@ public final class InvoiceProcessingPipeline {
         }
     }
 
-    private static void recordRoutedLedgersIfNeeded(CompanyRouteDirectory routes, ResolvedCompanyPath sourcePath,
-                                                    Path source, long size, Instant lastModified, String sha256,
-                                                    List<FileProcessingResult> results) throws IOException {
+    private void recordRoutedLedgersIfNeeded(CompanyRouteDirectory routes, ResolvedCompanyPath sourcePath,
+                                             Path source, long size, Instant lastModified, String sha256,
+                                             List<FileProcessingResult> results) throws IOException {
         for (FileProcessingResult result : results) {
             if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
                 continue;
@@ -462,7 +545,7 @@ public final class InvoiceProcessingPipeline {
             if (targetPath.isEmpty() || targetPath.orElseThrow().equals(sourcePath)) {
                 continue;
             }
-            new ProcessingLedger(TechnicalPaths.ledger(routes, targetPath.orElseThrow()))
+            processingStateRegistry.ledger(TechnicalPaths.ledger(routes, targetPath.orElseThrow()))
                     .record(new LedgerEntry(
                             result.companyId(),
                             source,

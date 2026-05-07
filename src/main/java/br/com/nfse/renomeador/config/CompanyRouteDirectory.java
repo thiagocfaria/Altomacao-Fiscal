@@ -11,23 +11,32 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public record CompanyRouteDirectory(
-        List<ResolvedCompanyPath> monitoredPaths,
-        List<ResolvedCompanyPath> activePaths,
-        Set<String> knownCustomerTaxIds,
-        Path backendRoot
-) {
+public final class CompanyRouteDirectory {
+    private final List<ResolvedCompanyPath> monitoredPaths;
+    private final List<ResolvedCompanyPath> activePaths;
+    private final Set<String> knownCustomerTaxIds;
+    private final Path backendRoot;
+    private final Map<String, ResolvedCompanyPath> pathByCustomerTaxId;
+    private final Map<String, ResolvedCompanyPath> pathByCustomerTaxIdAndMonth;
+    private final Map<String, ResolvedCompanyPath> pathByCompanyId;
+
     public CompanyRouteDirectory(List<ResolvedCompanyPath> monitoredPaths,
                                  List<ResolvedCompanyPath> activePaths,
                                  Set<String> knownCustomerTaxIds) {
         this(monitoredPaths, activePaths, knownCustomerTaxIds, defaultBackendRoot(monitoredPaths));
     }
 
-    public CompanyRouteDirectory {
-        monitoredPaths = List.copyOf(monitoredPaths);
-        activePaths = List.copyOf(activePaths);
-        knownCustomerTaxIds = Set.copyOf(knownCustomerTaxIds);
-        backendRoot = backendRoot == null ? defaultBackendRoot(monitoredPaths) : backendRoot;
+    public CompanyRouteDirectory(List<ResolvedCompanyPath> monitoredPaths,
+                                 List<ResolvedCompanyPath> activePaths,
+                                 Set<String> knownCustomerTaxIds,
+                                 Path backendRoot) {
+        this.monitoredPaths = List.copyOf(monitoredPaths);
+        this.activePaths = List.copyOf(activePaths);
+        this.knownCustomerTaxIds = Set.copyOf(knownCustomerTaxIds);
+        this.backendRoot = backendRoot == null ? defaultBackendRoot(monitoredPaths) : backendRoot;
+        this.pathByCustomerTaxId = buildTaxIdIndex(this.activePaths);
+        this.pathByCustomerTaxIdAndMonth = buildTaxIdMonthIndex(this.activePaths);
+        this.pathByCompanyId = buildCompanyIdIndex(this.activePaths);
     }
 
     public static CompanyRouteDirectory single(ResolvedCompanyPath companyPath) {
@@ -55,52 +64,99 @@ public record CompanyRouteDirectory(
         return new CompanyRouteDirectory(monitoredPaths, activePaths, known, backendRoot);
     }
 
+    public List<ResolvedCompanyPath> monitoredPaths() {
+        return monitoredPaths;
+    }
+
+    public List<ResolvedCompanyPath> activePaths() {
+        return activePaths;
+    }
+
+    public Set<String> knownCustomerTaxIds() {
+        return knownCustomerTaxIds;
+    }
+
+    public Path backendRoot() {
+        return backendRoot;
+    }
+
     public Optional<ResolvedCompanyPath> activePathForCustomerTaxId(String taxId) {
         String digits = TextNormalizer.digitsOnly(taxId);
         if (digits.isBlank()) {
             return Optional.empty();
         }
-        Map<String, ResolvedCompanyPath> byTaxId = new HashMap<>();
-        for (ResolvedCompanyPath path : activePaths) {
-            if (path.company().sourceOnly()) {
-                continue;
-            }
-            byTaxId.putIfAbsent(TextNormalizer.digitsOnly(path.company().customerTaxId()), path);
-        }
-        return Optional.ofNullable(byTaxId.get(digits));
+        return Optional.ofNullable(pathByCustomerTaxId.get(digits));
     }
 
     public Optional<ResolvedCompanyPath> activePathForCustomerTaxIdAndMonth(String taxId, YearMonth month) {
         String digits = TextNormalizer.digitsOnly(taxId);
-        if (digits.isBlank()) return Optional.empty();
-        List<ResolvedCompanyPath> matches = activePaths.stream()
-                .filter(p -> !p.company().sourceOnly())
-                .filter(p -> digits.equals(TextNormalizer.digitsOnly(p.company().customerTaxId())))
-                .toList();
-        if (matches.isEmpty()) return Optional.empty();
-        Optional<ResolvedCompanyPath> exactMatch = matches.stream()
-                .filter(p -> p.month().map(month::equals).orElse(false))
-                .findFirst();
-        if (exactMatch.isPresent()) return exactMatch;
-        boolean hasAnyMonthInfo = matches.stream().anyMatch(p -> p.month().isPresent());
-        if (hasAnyMonthInfo) return Optional.empty();
-        return Optional.of(matches.get(0));
+        if (digits.isBlank()) {
+            return Optional.empty();
+        }
+        ResolvedCompanyPath exact = pathByCustomerTaxIdAndMonth.get(monthKey(digits, month));
+        if (exact != null) {
+            return Optional.of(exact);
+        }
+        boolean hasAnyMonthInfo = pathByCustomerTaxIdAndMonth.keySet().stream()
+                .anyMatch(key -> key.startsWith(digits + "|"));
+        if (hasAnyMonthInfo) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(pathByCustomerTaxId.get(digits));
     }
 
     public Optional<ResolvedCompanyPath> activePathForCompanyId(String companyId) {
         if (companyId == null || companyId.isBlank()) {
             return Optional.empty();
         }
-        for (ResolvedCompanyPath path : activePaths) {
-            if (companyId.equals(path.company().id())) {
-                return Optional.of(path);
-            }
-        }
-        return Optional.empty();
+        return Optional.ofNullable(pathByCompanyId.get(companyId));
     }
 
     public boolean hasKnownCustomerTaxId(String taxId) {
         return knownCustomerTaxIds.contains(TextNormalizer.digitsOnly(taxId));
+    }
+
+    private static Map<String, ResolvedCompanyPath> buildTaxIdIndex(List<ResolvedCompanyPath> activePaths) {
+        Map<String, ResolvedCompanyPath> index = new HashMap<>();
+        for (ResolvedCompanyPath path : activePaths) {
+            if (path.company().sourceOnly()) {
+                continue;
+            }
+            String taxId = TextNormalizer.digitsOnly(path.company().customerTaxId());
+            if (!taxId.isBlank()) {
+                index.putIfAbsent(taxId, path);
+            }
+        }
+        return Map.copyOf(index);
+    }
+
+    private static Map<String, ResolvedCompanyPath> buildTaxIdMonthIndex(List<ResolvedCompanyPath> activePaths) {
+        Map<String, ResolvedCompanyPath> index = new HashMap<>();
+        for (ResolvedCompanyPath path : activePaths) {
+            if (path.company().sourceOnly() || path.month().isEmpty()) {
+                continue;
+            }
+            String taxId = TextNormalizer.digitsOnly(path.company().customerTaxId());
+            if (!taxId.isBlank()) {
+                index.putIfAbsent(monthKey(taxId, path.month().orElseThrow()), path);
+            }
+        }
+        return Map.copyOf(index);
+    }
+
+    private static Map<String, ResolvedCompanyPath> buildCompanyIdIndex(List<ResolvedCompanyPath> activePaths) {
+        Map<String, ResolvedCompanyPath> index = new HashMap<>();
+        for (ResolvedCompanyPath path : activePaths) {
+            String id = path.company().id();
+            if (id != null && !id.isBlank()) {
+                index.putIfAbsent(id, path);
+            }
+        }
+        return Map.copyOf(index);
+    }
+
+    private static String monthKey(String taxId, YearMonth month) {
+        return taxId + "|" + month;
     }
 
     private static Path defaultBackendRoot(List<ResolvedCompanyPath> monitoredPaths) {

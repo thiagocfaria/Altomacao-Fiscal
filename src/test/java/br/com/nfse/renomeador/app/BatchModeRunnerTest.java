@@ -9,6 +9,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.YearMonth;
@@ -42,8 +43,8 @@ class BatchModeRunnerTest {
         assertThat(Files.list(backendCompany("empresa_piloto").resolve("revisar")).map(path -> path.getFileName().toString()))
                 .anyMatch(name -> name.startsWith("NFSE_DESCONHECIDA_MODELO_NAO_SUPORTADO_") && name.endsWith(".pdf"));
         assertThat(backendCompany("empresa_piloto").resolve("processados.idx")).exists();
-        assertThat(backendCompany("empresa_piloto").resolve("execucao.log")).exists();
-        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
+        assertThat(operationalLog("empresa_piloto")).exists();
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("duracaoMs=");
     }
 
@@ -63,10 +64,9 @@ class BatchModeRunnerTest {
         assertThat(companyRoot.resolve("logs")).doesNotExist();
         assertThat(companyRoot.resolve("originais")).doesNotExist();
         Path backendCompany = systemRoot.resolve("backend").resolve("empresas").resolve("empresa_piloto");
-        assertThat(backendCompany.resolve("execucao.log")).exists();
+        assertThat(operationalLog(backendCompany)).exists();
         assertThat(backendCompany.resolve("processados.idx")).exists();
-        assertThat(backendCompany.resolve("originais")).isDirectoryContaining(path ->
-                path.getFileName().toString().equals("NF 9 OK.pdf"));
+        assertThat(backendCompany.resolve("originais")).doesNotExist();
     }
 
     @Test
@@ -100,6 +100,27 @@ class BatchModeRunnerTest {
     }
 
     @Test
+    void batchMovesOversizedPdfToReviewBeforePdfExtraction() throws Exception {
+        Path input = tempDir.resolve("entrada");
+        Files.createDirectories(input);
+        Path largePdf = input.resolve("gigante.pdf");
+        try (RandomAccessFile file = new RandomAccessFile(largePdf.toFile(), "rw")) {
+            file.setLength(br.com.nfse.renomeador.pipeline.InvoiceProcessingPipeline.MAX_FILE_SIZE_BYTES + 1);
+        }
+        Path config = writeConfig("25.014.360/0001-73");
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.errors()).isEqualTo(1);
+        assertThat(input.resolve("gigante.pdf")).doesNotExist();
+        assertThat(backendCompany("empresa_piloto").resolve("revisar"))
+                .isDirectoryContaining(path -> path.getFileName().toString()
+                        .equals("ARQUIVO_MUITO_GRANDE_gigante.pdf"));
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
+                .contains("Arquivo excede limite de 500MB");
+    }
+
+    @Test
     void batchRoutesWrongCompanyToReview() throws Exception {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
@@ -127,10 +148,10 @@ class BatchModeRunnerTest {
                 path.getFileName().toString().startsWith("NFSE_9_"));
         assertThat(tempDir.resolve("empresa_errada").resolve("revisar")).doesNotExist();
         assertThat(wrongInput.resolve("NF 9 OK.pdf")).doesNotExist();
-        assertThat(Files.readString(backendCompany("empresa_errada").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_errada")))
                 .contains("empresa_correta")
                 .contains("NF 9 OK.pdf");
-        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_correta")))
                 .contains("empresa_correta")
                 .contains("NF 9 OK.pdf")
                 .contains("SUMMARY\ttotal=1\tok=1");
@@ -153,7 +174,7 @@ class BatchModeRunnerTest {
                 path.getFileName().toString().startsWith("NFSE_9_"));
         assertThat(tempDir.resolve("origem_generica").resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
         assertThat(sourceInput.resolve("NF 9 OK.pdf")).doesNotExist();
-        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_correta")))
                 .contains("SUMMARY\ttotal=1\tok=1");
     }
 
@@ -205,7 +226,7 @@ class BatchModeRunnerTest {
         assertThat(targetRoot.resolve("processados")).isDirectoryContaining(path ->
                 path.getFileName().toString().startsWith("NFSE_9_"));
         assertThat(sourceRoot.resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
-        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_correta")))
                 .contains("pendente.pdf")
                 .contains("SUMMARY\ttotal=1\tok=1");
     }
@@ -245,9 +266,8 @@ class BatchModeRunnerTest {
         assertThat(pdfNames(tempDir.resolve("processados")))
                 .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.pdf");
         assertThat(tempDir.resolve("revisar")).doesNotExist();
-        assertThat(pdfNames(backendCompany("empresa_piloto").resolve("originais")))
-                .containsExactlyInAnyOrder("01-portal.pdf", "02-abrasf.pdf");
-        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
+        assertThat(backendCompany("empresa_piloto").resolve("originais")).doesNotExist();
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("DUPLICATE")
                 .contains("ABRASF duplicada descartada; Portal Nacional equivalente ja existe");
     }
@@ -282,7 +302,7 @@ class BatchModeRunnerTest {
         assertThat(input).isEmptyDirectory();
         assertThat(pdfNames(tempDir.resolve("processados")))
                 .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.pdf");
-        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("ABRASF duplicada anterior removida por Portal Nacional equivalente");
     }
 
@@ -303,7 +323,7 @@ class BatchModeRunnerTest {
         new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
 
         assertThat(outside).exists();
-        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
+        assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("fora da pasta da empresa");
     }
 
@@ -395,6 +415,14 @@ class BatchModeRunnerTest {
 
     private Path backendCompany(String id) {
         return tempDir.resolve("backend").resolve("empresas").resolve(id);
+    }
+
+    private Path operationalLog(String id) {
+        return operationalLog(backendCompany(id));
+    }
+
+    private static Path operationalLog(Path backendCompany) {
+        return backendCompany.resolve("execucao-" + YearMonth.now() + ".tsv");
     }
 
     private static String portalDuplicateText() {

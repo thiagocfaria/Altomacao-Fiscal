@@ -14,7 +14,7 @@ Em sessao nova deste projeto:
 
 - Codigo Java segue a arquitetura de camadas definida em `AGENTS.md` — nao misturar camadas.
 - Dois layouts homologados: **Portal Nacional (DANFSe v1.0)** e **ABRASF municipal**. Qualquer outro vai para `revisar/`.
-- O original do PDF nunca pode ser perdido ou sobrescrito — preservar sempre no backend tecnico, em `backend/empresas/<empresa_id>/originais/`.
+- O PDF original nunca pode ser sobrescrito; depois de processado, ele deve existir apenas no destino operacional correto ou em revisao. Nao criar copia tecnica em `backend/originais`.
 - Se a tarefa tocar em parser, extracao ou deteccao de layout, use a skill `layout-nfse` para garantir que os campos corretos estao sendo lidos do lugar certo.
 - Se tocar em performance, watcher ou pipeline, use `validacao-performance-java` antes de declarar melhoria.
 

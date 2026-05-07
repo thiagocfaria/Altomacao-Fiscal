@@ -227,7 +227,9 @@ public final class ExcelCompanyImporter {
             String name = text(row.getCell(nameColumn));
             String taxId = normalizeTaxId(text(row.getCell(taxColumn)));
             String path = pathFrom(row.getCell(pathColumn));
-            boolean sourceOnly = sourceOnlyColumn != null && isAffirmative(text(row.getCell(sourceOnlyColumn)));
+            boolean explicitSourceOnly = sourceOnlyColumn != null && isAffirmative(text(row.getCell(sourceOnlyColumn)));
+            boolean validOrFixableCnpj = isValidOrFixableCnpj(taxId);
+            boolean sourceOnly = explicitSourceOnly && !validOrFixableCnpj;
             if (name.isBlank() && taxId.isBlank() && path.isBlank()) {
                 continue;
             }
@@ -237,11 +239,14 @@ public final class ExcelCompanyImporter {
             if (name.isBlank() || taxId.isBlank()) {
                 continue;
             }
-            if (!isValidOrFixableCnpj(taxId)) {
+            if (explicitSourceOnly && path.isBlank()) {
+                continue;
+            }
+            if (!validOrFixableCnpj) {
                 if (path.isBlank()) {
                     continue;
                 }
-                if (!sourceOnly) {
+                if (!explicitSourceOnly) {
                     throw new IllegalArgumentException("CNPJ invalido na linha " + (rowIndex + 1)
                             + "; corrija o CNPJ ou marque SOMENTE ORIGEM como SIM");
                 }

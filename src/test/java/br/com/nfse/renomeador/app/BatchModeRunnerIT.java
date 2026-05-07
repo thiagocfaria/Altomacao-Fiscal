@@ -30,9 +30,8 @@ class BatchModeRunnerIT {
                 .isDirectoryContaining(path -> path.getFileName().toString()
                         .equals("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_140,00.pdf"));
         Path backendCompany = tempDir.resolve("backend").resolve("empresas").resolve("empresa_piloto");
-        assertThat(backendCompany.resolve("originais")).isDirectoryContaining(path ->
-                path.getFileName().toString().equals("NF 9 OK.pdf"));
-        assertThat(Files.readString(backendCompany.resolve("execucao.log")))
+        assertThat(backendCompany.resolve("originais")).doesNotExist();
+        assertThat(Files.readString(backendCompany.resolve("execucao-" + YearMonth.now() + ".tsv")))
                 .contains("OK")
                 .contains("duracaoMs=");
         assertThat(tempDir.resolve("logs")).doesNotExist();

@@ -9,6 +9,7 @@ public final class ProcessingSummary {
     private int total;
     private int skipped;
     private int errors;
+    private int repaired;
     private final Map<ProcessingStatus, Integer> byStatus = new EnumMap<>(ProcessingStatus.class);
 
     public void record(ProcessingStatus status) {
@@ -25,6 +26,10 @@ public final class ProcessingSummary {
         errors++;
     }
 
+    public void recordRepaired() {
+        repaired++;
+    }
+
     public int total() {
         return total;
     }
@@ -39,5 +44,9 @@ public final class ProcessingSummary {
 
     public int count(ProcessingStatus status) {
         return byStatus.getOrDefault(status, 0);
+    }
+
+    public int repaired() {
+        return repaired;
     }
 }

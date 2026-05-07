@@ -9,14 +9,26 @@ import br.com.nfse.renomeador.pipeline.ProcessingLogger;
 import br.com.nfse.renomeador.pipeline.ProcessingSummary;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class BatchModeRunner {
+    private static final long FILE_TIMEOUT_SECONDS = 60L;
+    private static final long MIN_FREE_SPACE_BYTES = 500L * 1024L * 1024L;
+
     private final RuntimeCompanyPaths companyPaths;
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
@@ -45,40 +57,96 @@ public final class BatchModeRunner {
                                  boolean homologation) throws IOException {
         CompanyRouteDirectory routes = companyPaths.loadRoutes(config, companyId, month);
         List<ResolvedCompanyPath> paths = routes.monitoredPaths();
+        validateDiskSpace(paths);
         List<br.com.nfse.renomeador.pipeline.InputCandidate> candidates = scanner.scan(paths);
         Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath = new HashMap<>();
         ProcessingSummary overall = new ProcessingSummary();
+        ExecutorService timeoutExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("nfse-timeout"));
 
+        try {
+            for (ResolvedCompanyPath path : paths) {
+                summariesByPath.put(path, new ProcessingSummary());
+            }
+
+            for (MissingCustomerRecoveryProcessor.RecoveryBatch batch : recoveryProcessor.recover(routes, homologation)) {
+                ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(batch.sourcePath(),
+                        ignored -> new ProcessingSummary());
+                for (FileProcessingResult result : batch.results()) {
+                    recordOperationalLogs(batch.sourcePath(), result, routes);
+                    record(pathSummary, result);
+                    recordRoutedSummary(summariesByPath, batch.sourcePath(), result, routes);
+                    record(overall, result);
+                }
+            }
+
+            for (var candidate : candidates) {
+                List<FileProcessingResult> results = processWithTimeout(candidate, homologation, routes, timeoutExecutor);
+                ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(), ignored -> new ProcessingSummary());
+                for (FileProcessingResult result : results) {
+                    recordOperationalLogs(candidate.companyPath(), result, routes);
+                    record(pathSummary, result);
+                    recordRoutedSummary(summariesByPath, candidate.companyPath(), result, routes);
+                    record(overall, result);
+                }
+            }
+
+            for (ResolvedCompanyPath path : paths) {
+                int repaired = pipeline.repairMisnamedOutputFiles(path);
+                for (int i = 0; i < repaired; i++) {
+                    overall.recordRepaired();
+                }
+            }
+
+            for (Map.Entry<ResolvedCompanyPath, ProcessingSummary> entry : summariesByPath.entrySet()) {
+                logger.recordSummary(routes, entry.getKey(), entry.getValue());
+            }
+            return overall;
+        } finally {
+            timeoutExecutor.shutdownNow();
+        }
+    }
+
+    private List<FileProcessingResult> processWithTimeout(
+            br.com.nfse.renomeador.pipeline.InputCandidate candidate,
+            boolean homologation,
+            CompanyRouteDirectory routes,
+            ExecutorService timeoutExecutor) throws IOException {
+        var future = timeoutExecutor.submit(() -> pipeline.process(candidate, homologation, routes));
+        try {
+            return future.get(FILE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException exception) {
+            future.cancel(true);
+            return pipeline.timeoutResult(candidate, homologation, routes, FILE_TIMEOUT_SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            throw new IOException("Processamento interrompido", exception);
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IOException("Falha ao processar arquivo", cause);
+        }
+    }
+
+    private static void validateDiskSpace(List<ResolvedCompanyPath> paths) throws IOException {
         for (ResolvedCompanyPath path : paths) {
-            summariesByPath.put(path, new ProcessingSummary());
-        }
-
-        for (MissingCustomerRecoveryProcessor.RecoveryBatch batch : recoveryProcessor.recover(routes, homologation)) {
-            ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(batch.sourcePath(),
-                    ignored -> new ProcessingSummary());
-            for (FileProcessingResult result : batch.results()) {
-                recordOperationalLogs(batch.sourcePath(), result, routes);
-                record(pathSummary, result);
-                recordRoutedSummary(summariesByPath, batch.sourcePath(), result, routes);
-                record(overall, result);
+            Path root = path.root().toAbsolutePath().normalize();
+            if (!Files.exists(root)) {
+                continue;
+            }
+            FileStore store = Files.getFileStore(root);
+            long free = store.getUsableSpace();
+            if (free < MIN_FREE_SPACE_BYTES) {
+                throw new IllegalStateException("Espaco em disco insuficiente em " + root
+                        + ": " + (free / 1_048_576L) + "MB livres, minimo "
+                        + (MIN_FREE_SPACE_BYTES / 1_048_576L) + "MB necessarios");
             }
         }
-
-        for (var candidate : candidates) {
-            List<FileProcessingResult> results = pipeline.process(candidate, homologation, routes);
-            ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(), ignored -> new ProcessingSummary());
-            for (FileProcessingResult result : results) {
-                recordOperationalLogs(candidate.companyPath(), result, routes);
-                record(pathSummary, result);
-                recordRoutedSummary(summariesByPath, candidate.companyPath(), result, routes);
-                record(overall, result);
-            }
-        }
-
-        for (Map.Entry<ResolvedCompanyPath, ProcessingSummary> entry : summariesByPath.entrySet()) {
-            logger.recordSummary(routes, entry.getKey(), entry.getValue());
-        }
-        return overall;
     }
 
     private void recordOperationalLogs(ResolvedCompanyPath sourcePath, FileProcessingResult result,
@@ -115,6 +183,22 @@ public final class BatchModeRunner {
             summary.recordError();
         } else {
             summary.record(result.status());
+        }
+    }
+
+    private static final class NamedThreadFactory implements ThreadFactory {
+        private final String prefix;
+        private final AtomicInteger counter = new AtomicInteger();
+
+        private NamedThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, prefix + "-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
         }
     }
 }

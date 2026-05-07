@@ -5,6 +5,9 @@ import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.processing.ProcessingStatus;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,11 +15,20 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 
 public final class ProcessingLogger {
+    private final TechnicalRetentionPolicy retentionPolicy;
+
+    public ProcessingLogger() {
+        this(new TechnicalRetentionPolicy());
+    }
+
+    ProcessingLogger(TechnicalRetentionPolicy retentionPolicy) {
+        this.retentionPolicy = retentionPolicy;
+    }
+
     public void record(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath, FileProcessingResult result) throws IOException {
         Path log = logFile(routes, companyPath);
         Files.createDirectories(log.getParent());
-        Files.writeString(log, lineFor(result), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        appendLine(log, lineFor(result));
     }
 
     public void recordSummary(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath,
@@ -36,8 +48,8 @@ public final class ProcessingLogger {
                 summary.skipped(),
                 summary.errors()
         );
-        Files.writeString(log, line, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        appendLine(log, line);
+        applyRetention(log.getParent());
     }
 
     private static Path logFile(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
@@ -58,5 +70,21 @@ public final class ProcessingLogger {
                 result.durationMillis(),
                 error
         );
+    }
+
+    private static void appendLine(Path log, String line) throws IOException {
+        try (FileChannel channel = FileChannel.open(log,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+             FileLock ignored = channel.lock()) {
+            channel.write(ByteBuffer.wrap(line.getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    private void applyRetention(Path logDirectory) {
+        try {
+            retentionPolicy.apply(logDirectory);
+        } catch (IOException ignored) {
+            // A retencao nao pode transformar um processamento correto em erro operacional.
+        }
     }
 }

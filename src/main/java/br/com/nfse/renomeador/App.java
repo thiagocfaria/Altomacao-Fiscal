@@ -81,7 +81,17 @@ public final class App {
         }
 
         Optional<Path> spreadsheet() {
-            return Optional.ofNullable(spreadsheet);
+            if (spreadsheet != null) {
+                return Optional.of(spreadsheet);
+            }
+            Path configParent = config == null ? null : config.toAbsolutePath().normalize().getParent();
+            if (configParent != null) {
+                Path defaultSpreadsheet = configParent.resolve("PLANILHA_FISCAL.xlsm");
+                if (java.nio.file.Files.isRegularFile(defaultSpreadsheet)) {
+                    return Optional.of(defaultSpreadsheet);
+                }
+            }
+            return Optional.empty();
         }
     }
 
@@ -92,11 +102,12 @@ public final class App {
             try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
                 refreshFromSpreadsheetIfPresent(this);
                 ProcessingSummary summary = new BatchModeRunner().run(config, companyId(), month(), homologation);
-                System.out.printf("Processados=%d OK=%d Canceladas=%d Duplicadas=%d Ignorados=%d Erros=%d%n",
+                System.out.printf("Processados=%d OK=%d Canceladas=%d Duplicadas=%d Corrigidos=%d Ignorados=%d Erros=%d%n",
                         summary.total(),
                         summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.OK),
                         summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.CANCELLED),
                         summary.count(br.com.nfse.renomeador.processing.ProcessingStatus.DUPLICATE),
+                        summary.repaired(),
                         summary.skipped(),
                         summary.errors());
                 return summary.errors() == 0 ? 0 : 2;

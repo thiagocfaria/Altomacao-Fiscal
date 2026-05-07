@@ -211,7 +211,7 @@
       <text class="small" x="18" y="84">2 calcula SHA-256 (identidade)</text>
       <text class="small" x="18" y="108">3 consulta ledger (historico)</text>
       <text class="small" x="18" y="132">4 preserva original (copia de seguranca)</text>
-      <text class="tiny" x="18" y="155">backend/originais guarda copia tecnica</text>
+      <text class="tiny" x="18" y="155">backend guarda logs e indices tecnicos</text>
     </g>
     <path class="arrow" d="M785 177 H875"/>
 

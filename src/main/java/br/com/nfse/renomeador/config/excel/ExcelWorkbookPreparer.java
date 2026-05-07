@@ -1,11 +1,13 @@
 package br.com.nfse.renomeador.config.excel;
 
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.ConditionalFormattingRule;
 import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -37,6 +39,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class ExcelWorkbookPreparer {
+    private static final DataFormatter FORMATTER = new DataFormatter(Locale.forLanguageTag("pt-BR"));
     private static final Pattern NON_DIGITS = Pattern.compile("\\D");
     private static final Pattern NON_ALNUM = Pattern.compile("[^A-Za-z0-9]");
     private static final String DASHBOARD_SHEET = "DASHBOARD";
@@ -223,6 +226,7 @@ public final class ExcelWorkbookPreparer {
         styleOperationalRows(workbook, sheet, lastReadyRow);
         populateHelperFormulas(workbook, sheet, lastReadyRow);
         clearStaleLegacyHelperColumns(sheet, lastReadyRow);
+        clearSourceOnlyForValidClients(sheet, lastReadyRow);
         markInvalidCnpj(workbook, sheet);
         return lastReadyRow;
     }
@@ -1150,8 +1154,10 @@ public final class ExcelWorkbookPreparer {
     }
 
     private static String cnpjStatusFormula(int excelRow) {
-        return "IF(A%d=\"\",\"\",IF(LEN(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(D%d,\".\",\"\"),\"/\",\"\"),\"-\",\"\"),\" \",\"\"))<>14,\"CNPJ INVALIDO\",\"OK\"))"
-                .formatted(excelRow, excelRow);
+        String digits = "IF(ISNUMBER(D%d),TEXT(D%d,\"00000000000000\"),SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(D%d,\".\",\"\"),\"/\",\"\"),\"-\",\"\"),\" \",\"\"),CHAR(160),\"\"))"
+                .formatted(excelRow, excelRow, excelRow);
+        return "IF(A%d=\"\",\"\",IF(LEN(%s)<>14,\"CNPJ INVALIDO\",\"OK\"))"
+                .formatted(excelRow, digits);
     }
 
     private static void markInvalidCnpj(Workbook workbook, Sheet sheet) {
@@ -1168,7 +1174,7 @@ public final class ExcelWorkbookPreparer {
                 continue;
             }
             Cell cnpj = row.getCell(CNPJ_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-            String value = cnpj.toString();
+            String value = cnpjText(cnpj);
             if (isBlankRow(row) || isValidOrFixableCnpj(value)) {
                 continue;
             }
@@ -1200,10 +1206,40 @@ public final class ExcelWorkbookPreparer {
         }
     }
 
+    private static void clearSourceOnlyForValidClients(Sheet sheet, int lastReadyRow) {
+        for (int rowIndex = HEADER_ROW_INDEX + 1; rowIndex <= lastReadyRow; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null || isBlankRow(row)) {
+                continue;
+            }
+            Cell cnpj = row.getCell(CNPJ_COLUMN, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            if (cnpj == null || !isValidOrFixableCnpj(cnpjText(cnpj))) {
+                continue;
+            }
+            Cell sourceOnly = row.getCell(SOURCE_ONLY_COLUMN, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            if (sourceOnly != null) {
+                sourceOnly.setBlank();
+            }
+        }
+    }
+
     private static boolean isBlankRow(Row row) {
         Cell client = row.getCell(CLIENT_COLUMN, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         Cell cnpj = row.getCell(CNPJ_COLUMN, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-        return (client == null || client.toString().isBlank()) && (cnpj == null || cnpj.toString().isBlank());
+        return (client == null || client.toString().isBlank()) && (cnpj == null || cnpjText(cnpj).isBlank());
+    }
+
+    private static String cnpjText(Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+        if (cell.getCellType() == CellType.NUMERIC) {
+            double value = cell.getNumericCellValue();
+            if (value == Math.floor(value) && !Double.isInfinite(value) && Math.abs(value) < 1e15) {
+                return String.valueOf((long) value);
+            }
+        }
+        return FORMATTER.formatCellValue(cell).strip();
     }
 
     private static boolean isValidOrFixableCnpj(String value) {

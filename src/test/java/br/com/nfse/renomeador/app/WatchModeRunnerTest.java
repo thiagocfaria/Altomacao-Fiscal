@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,7 +44,7 @@ class WatchModeRunnerTest {
         watcher.start();
 
         await(() -> Files.exists(tempDir.resolve("backend").resolve("empresas")
-                .resolve("origem_generica").resolve("execucao.log")));
+                .resolve("origem_generica").resolve("execucao-" + YearMonth.now() + ".tsv")));
 
         Files.createDirectories(targetRoot.resolve("entrada"));
         writeWatchConfig(config, sourceRoot, targetRoot, true);
@@ -83,7 +84,7 @@ class WatchModeRunnerTest {
         watcher.start();
 
         await(() -> Files.exists(tempDir.resolve("backend").resolve("empresas")
-                .resolve("origem_generica").resolve("execucao.log")));
+                .resolve("origem_generica").resolve("execucao-" + YearMonth.now() + ".tsv")));
 
         Files.createDirectories(targetRoot.resolve("entrada"));
         writeSpreadsheet(spreadsheet, sourceRoot, targetRoot, true);

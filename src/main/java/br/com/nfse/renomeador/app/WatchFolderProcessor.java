@@ -18,15 +18,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class WatchFolderProcessor {
     private static final int MAX_STABILITY_ATTEMPTS = 5;
     private static final Duration STABILITY_RETRY_DELAY = Duration.ofMillis(250);
+    private static final long FILE_TIMEOUT_SECONDS = 60L;
 
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
     private final ProcessingLogger logger;
     private final MissingCustomerRecoveryProcessor recoveryProcessor;
+    private final ExecutorService timeoutExecutor;
 
     WatchFolderProcessor() {
         this(new InputScanner(), new InvoiceProcessingPipeline(), new ProcessingLogger());
@@ -42,6 +51,7 @@ final class WatchFolderProcessor {
         this.pipeline = pipeline;
         this.logger = logger;
         this.recoveryProcessor = recoveryProcessor;
+        this.timeoutExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("nfse-watch-timeout"));
     }
 
     ProcessingSummary processExisting(List<ResolvedCompanyPath> paths, boolean homologation) throws IOException {
@@ -121,7 +131,7 @@ final class WatchFolderProcessor {
                                                                  CompanyRouteDirectory routes) throws IOException {
         List<FileProcessingResult> lastResult = List.of();
         for (int attempt = 1; attempt <= MAX_STABILITY_ATTEMPTS; attempt++) {
-            lastResult = pipeline.process(candidate, homologation, routes);
+            lastResult = processWithTimeout(candidate, homologation, routes);
             if (!isUnstableSkip(lastResult) || attempt == MAX_STABILITY_ATTEMPTS) {
                 return lastResult;
             }
@@ -130,6 +140,31 @@ final class WatchFolderProcessor {
             }
         }
         return lastResult;
+    }
+
+    private List<FileProcessingResult> processWithTimeout(InputCandidate candidate, boolean homologation,
+                                                          CompanyRouteDirectory routes) throws IOException {
+        var future = timeoutExecutor.submit(() -> pipeline.process(candidate, homologation, routes));
+        try {
+            return future.get(FILE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException exception) {
+            future.cancel(true);
+            return pipeline.timeoutResult(candidate, homologation, routes, FILE_TIMEOUT_SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return List.of(FileProcessingResult.skipped(candidate.companyPath().company().id(), candidate.source(),
+                    "Processamento interrompido"));
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IOException("Falha ao processar arquivo observado", cause);
+        }
     }
 
     private void recordResults(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
@@ -211,6 +246,22 @@ final class WatchFolderProcessor {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return false;
+        }
+    }
+
+    private static final class NamedThreadFactory implements ThreadFactory {
+        private final String prefix;
+        private final AtomicInteger counter = new AtomicInteger();
+
+        private NamedThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, prefix + "-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
         }
     }
 }
