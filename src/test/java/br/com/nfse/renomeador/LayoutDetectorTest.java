@@ -34,6 +34,20 @@ class LayoutDetectorTest {
     }
 
     @Test
+    void detectsMunicipalAbrasfLayoutWithVerificationCode() {
+        String text = """
+            MUNICIPIO DE GOIANESIA
+            Nota Fiscal de Servicos Eletronico - NFS-e
+            Codigo verificacao: 7770752034260416
+            PRESTADOR DE SERVICOS
+            TOMADOR DE SERVICOS
+            Valor dos servicos R$ 400,00
+            """;
+
+        assertThat(detector.detect(text)).isEqualTo(LayoutType.ABRASF_ISSNET);
+    }
+
+    @Test
     void rejectsUnsupportedTextualLayout() {
         String text = "PREFEITURA DO MUNICIPIO DE SAO PAULO NOTA FISCAL ELETRONICA DE SERVICOS";
 

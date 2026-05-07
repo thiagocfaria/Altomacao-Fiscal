@@ -23,15 +23,28 @@ public final class LayoutDetector {
         if (containsAll(normalized, "DANFSE V1.0", "NUMERO DA DPS", "TOMADOR DO SERVICO")) {
             return LayoutType.PORTAL_NACIONAL;
         }
-        if (containsAll(normalized,
+        if (isAbrasfIssnet(normalized) || isMunicipalAbrasf(normalized)) {
+            return LayoutType.ABRASF_ISSNET;
+        }
+        return LayoutType.UNSUPPORTED;
+    }
+
+    private static boolean isAbrasfIssnet(String normalized) {
+        return containsAll(normalized,
                 "NFS-E NOTA FISCAL",
                 "SERVICO ELETRONICA",
                 "COD. DE AUTENTICIDADE",
                 "DETALHAMENTO DOS TRIBUTOS",
-                "DADOS DO TOMADOR DE SERVICOS")) {
-            return LayoutType.ABRASF_ISSNET;
-        }
-        return LayoutType.UNSUPPORTED;
+                "DADOS DO TOMADOR DE SERVICOS");
+    }
+
+    private static boolean isMunicipalAbrasf(String normalized) {
+        boolean hasInvoiceTitle = normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICO")
+                || normalized.contains("NOTA FISCAL ELETRONICA DE SERVICOS");
+        return hasInvoiceTitle && containsAll(normalized,
+                "CODIGO VERIFICACAO",
+                "PRESTADOR DE SERVICOS",
+                "TOMADOR DE SERVICOS");
     }
 
     private static boolean containsAll(String text, String... markers) {

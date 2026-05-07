@@ -1,6 +1,7 @@
 package br.com.nfse.renomeador.pipeline;
 
 import br.com.nfse.renomeador.config.ResolvedCompanyPath;
+import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.processing.ProcessingStatus;
 
 import java.io.IOException;
@@ -11,15 +12,16 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 
 public final class ProcessingLogger {
-    public void record(ResolvedCompanyPath companyPath, FileProcessingResult result) throws IOException {
-        Path log = logFile(companyPath);
+    public void record(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath, FileProcessingResult result) throws IOException {
+        Path log = logFile(routes, companyPath);
         Files.createDirectories(log.getParent());
         Files.writeString(log, lineFor(result), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
-    public void recordSummary(ResolvedCompanyPath companyPath, ProcessingSummary summary) throws IOException {
-        Path log = logFile(companyPath);
+    public void recordSummary(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath,
+                              ProcessingSummary summary) throws IOException {
+        Path log = logFile(routes, companyPath);
         Files.createDirectories(log.getParent());
         String line = "%s\tSUMMARY\ttotal=%d\tok=%d\trevisar=%d\tcanceladas=%d\tduplicadas=%d\tignorados=%d\terros=%d%n".formatted(
                 Instant.now(),
@@ -38,8 +40,8 @@ public final class ProcessingLogger {
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
-    private static Path logFile(ResolvedCompanyPath companyPath) {
-        return PathsForCompany.logs(companyPath).resolve("execucao.log");
+    private static Path logFile(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
+        return TechnicalPaths.log(routes, companyPath);
     }
 
     private static String lineFor(FileProcessingResult result) {

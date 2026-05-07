@@ -10,8 +10,5 @@ empresas:
     pastas:
       entrada: "entrada"
       processados: "processados"
-      revisar: "revisar"
-      originais: "originais"
-      logs: "logs"
-      canceladas: "revisar/canceladas"
-      ledger: "logs/processados.idx"
+      canceladas: "canceladas"
+      # Logs, ledger, indice de duplicidade e originais ficam no backend do sistema.

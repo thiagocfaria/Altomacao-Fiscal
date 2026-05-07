@@ -11,8 +11,12 @@ if not exist "%JAR%" (
 )
 
 if "%~1"=="" (
-  echo Uso: rodar-watch.bat C:\caminho\empresas.yaml
+  echo Uso: rodar-watch.bat C:\caminho\empresas.yaml [C:\caminho\PLANILHA_FISCAL.xlsm]
   exit /b 1
 )
 
-java -jar "%JAR%" watch --config "%~1"
+if "%~2"=="" (
+  java -jar "%JAR%" watch --config "%~1"
+) else (
+  java -jar "%JAR%" watch --config "%~1" --planilha "%~2"
+)

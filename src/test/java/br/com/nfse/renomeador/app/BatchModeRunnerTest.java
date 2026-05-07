@@ -39,12 +39,50 @@ class BatchModeRunnerTest {
         assertThat(input.resolve("NF 55034 OK.pdf")).exists();
         assertThat(Files.list(tempDir.resolve("processados")).map(path -> path.getFileName().toString()))
                 .anyMatch(name -> name.startsWith("NFSE_9_") && name.endsWith(".pdf"));
-        assertThat(Files.list(tempDir.resolve("revisar")).map(path -> path.getFileName().toString()))
+        assertThat(Files.list(backendCompany("empresa_piloto").resolve("revisar")).map(path -> path.getFileName().toString()))
                 .anyMatch(name -> name.startsWith("NFSE_DESCONHECIDA_MODELO_NAO_SUPORTADO_") && name.endsWith(".pdf"));
-        assertThat(tempDir.resolve("logs").resolve("processados.idx")).exists();
-        assertThat(tempDir.resolve("logs").resolve("execucao.log")).exists();
-        assertThat(Files.readString(tempDir.resolve("logs").resolve("execucao.log")))
+        assertThat(backendCompany("empresa_piloto").resolve("processados.idx")).exists();
+        assertThat(backendCompany("empresa_piloto").resolve("execucao.log")).exists();
+        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
                 .contains("duracaoMs=");
+    }
+
+    @Test
+    void batchKeepsTechnicalFilesUnderBackendInsteadOfClientRest() throws Exception {
+        Path systemRoot = Files.createDirectories(tempDir.resolve("sistema"));
+        Path companyRoot = Files.createDirectories(tempDir.resolve("cliente"));
+        Path input = Files.createDirectories(companyRoot.resolve("entrada"));
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Path config = writeConfigAt(systemRoot.resolve("empresas.yaml"), "25.014.360/0001-73", companyRoot);
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(companyRoot.resolve("processados")).isDirectoryContaining(path ->
+                path.getFileName().toString().startsWith("NFSE_9_"));
+        assertThat(companyRoot.resolve("logs")).doesNotExist();
+        assertThat(companyRoot.resolve("originais")).doesNotExist();
+        Path backendCompany = systemRoot.resolve("backend").resolve("empresas").resolve("empresa_piloto");
+        assertThat(backendCompany.resolve("execucao.log")).exists();
+        assertThat(backendCompany.resolve("processados.idx")).exists();
+        assertThat(backendCompany.resolve("originais")).isDirectoryContaining(path ->
+                path.getFileName().toString().equals("NF 9 OK.pdf"));
+    }
+
+    @Test
+    void batchSendsRetainedInvoicesToRetidoFolder() throws Exception {
+        Path input = tempDir.resolve("entrada");
+        Files.createDirectories(input);
+        writeTextPdf(input.resolve("retida.pdf"),
+                portalDuplicateText().replace("Valor Liquido da NFS-e R$ 100,00", "Valor Liquido da NFS-e R$ 90,00"));
+        Path config = writeConfig("25.014.360/0001-73");
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(tempDir.resolve("RETIDO")).isDirectoryContaining(path ->
+                path.getFileName().toString().contains("##IR_RETIDO##"));
+        assertThat(tempDir.resolve("processados")).doesNotExist();
     }
 
     @Test
@@ -71,8 +109,8 @@ class BatchModeRunnerTest {
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
 
         assertThat(summary.count(ProcessingStatus.WRONG_COMPANY)).isEqualTo(1);
-        assertThat(Files.list(tempDir.resolve("revisar")).map(path -> path.getFileName().toString()))
-                .anyMatch(name -> name.startsWith("NFSE_9_CNPJ_INCORRETO_") && name.endsWith(".pdf"));
+        assertThat(tempDir.resolve("TOMADOR NAO ENCONTRADO")).isDirectoryContaining(path ->
+                path.getFileName().toString().contains("25014360000173"));
     }
 
     @Test
@@ -89,15 +127,34 @@ class BatchModeRunnerTest {
                 path.getFileName().toString().startsWith("NFSE_9_"));
         assertThat(tempDir.resolve("empresa_errada").resolve("revisar")).doesNotExist();
         assertThat(wrongInput.resolve("NF 9 OK.pdf")).doesNotExist();
-        assertThat(Files.readString(tempDir.resolve("empresa_errada").resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_errada").resolve("execucao.log")))
                 .contains("empresa_correta")
                 .contains("NF 9 OK.pdf");
-        assertThat(Files.readString(tempDir.resolve("empresa_correta").resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+                .contains("empresa_correta")
+                .contains("NF 9 OK.pdf")
+                .contains("SUMMARY\ttotal=1\tok=1");
+        assertThat(Files.readString(backendCompany("empresa_correta").resolve("processados.idx")))
                 .contains("empresa_correta")
                 .contains("NF 9 OK.pdf");
-        assertThat(Files.readString(tempDir.resolve("empresa_correta").resolve("logs").resolve("processados.idx")))
-                .contains("empresa_correta")
-                .contains("NF 9 OK.pdf");
+    }
+
+    @Test
+    void batchRoutesSourceOnlyFolderByInvoiceCustomerTaxId() throws Exception {
+        Path sourceInput = Files.createDirectories(tempDir.resolve("origem_generica").resolve("entrada"));
+        Files.createDirectories(tempDir.resolve("empresa_correta").resolve("entrada"));
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), sourceInput.resolve("NF 9 OK.pdf"));
+        Path config = writeSourceOnlyConfig();
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(tempDir.resolve("empresa_correta").resolve("processados")).isDirectoryContaining(path ->
+                path.getFileName().toString().startsWith("NFSE_9_"));
+        assertThat(tempDir.resolve("origem_generica").resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
+        assertThat(sourceInput.resolve("NF 9 OK.pdf")).doesNotExist();
+        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+                .contains("SUMMARY\ttotal=1\tok=1");
     }
 
     @Test
@@ -109,9 +166,67 @@ class BatchModeRunnerTest {
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
 
         assertThat(summary.errors()).isZero();
-        assertThat(tempDir.resolve("empresa_errada").resolve("revisar")).isDirectoryContaining(path ->
-                path.getFileName().toString().startsWith("NF_PASTA_INCORRETA_CNPJ_NF_25014360000173_CNPJ_PASTA_12345678000195"));
+        assertThat(tempDir.resolve("empresa_errada").resolve("TOMADOR NAO ENCONTRADO")).isDirectoryContaining(path ->
+                path.getFileName().toString().contains("25014360000173"));
         assertThat(wrongInput.resolve("NF 9 OK.pdf")).doesNotExist();
+    }
+
+    @Test
+    void batchKeepsUnroutableWrongFolderInvoiceInTomadorNaoEncontrado() throws Exception {
+        Path wrongInput = Files.createDirectories(tempDir.resolve("empresa_errada").resolve("entrada"));
+        writeTextPdf(wrongInput.resolve("nota-sem-rest.pdf"), portalDuplicateText());
+        Path config = writeTwoCompanyConfig(false);
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.errors()).isZero();
+        Path folder = tempDir.resolve("empresa_errada").resolve("TOMADOR NAO ENCONTRADO");
+        assertThat(folder).isDirectory();
+        assertThat(pdfNames(folder)).singleElement().satisfies(name -> assertThat(name)
+                .contains("CLIENTE_TESTE_LTDA")
+                .contains("25014360000173")
+                .contains("100,00"));
+        assertThat(wrongInput.resolve("nota-sem-rest.pdf")).doesNotExist();
+    }
+
+    @Test
+    void batchRecoversTomadorNaoEncontradoWhenCustomerRestPathBecomesActive() throws Exception {
+        Path sourceRoot = tempDir.resolve("origem_generica");
+        Path targetRoot = tempDir.resolve("empresa_correta");
+        Files.createDirectories(sourceRoot.resolve("entrada"));
+        Files.createDirectories(targetRoot.resolve("entrada"));
+        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+        Path config = writeSourceOnlyConfig();
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(targetRoot.resolve("processados")).isDirectoryContaining(path ->
+                path.getFileName().toString().startsWith("NFSE_9_"));
+        assertThat(sourceRoot.resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
+        assertThat(Files.readString(backendCompany("empresa_correta").resolve("execucao.log")))
+                .contains("pendente.pdf")
+                .contains("SUMMARY\ttotal=1\tok=1");
+    }
+
+    @Test
+    void batchDeletesTomadorNaoEncontradoDuplicateWhenSamePdfWasAlreadyProcessedInTarget() throws Exception {
+        Path sourceRoot = tempDir.resolve("origem_generica");
+        Path targetRoot = tempDir.resolve("empresa_correta");
+        Files.createDirectories(sourceRoot.resolve("entrada"));
+        Path targetInput = Files.createDirectories(targetRoot.resolve("entrada"));
+        Path config = writeSourceOnlyConfig();
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), targetInput.resolve("NF 9 OK.pdf"));
+        new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
+        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.skipped()).isEqualTo(1);
+        assertThat(sourceRoot.resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
+        assertThat(pdfNames(targetRoot.resolve("processados"))).hasSize(1);
     }
 
     @Test
@@ -130,10 +245,27 @@ class BatchModeRunnerTest {
         assertThat(pdfNames(tempDir.resolve("processados")))
                 .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.pdf");
         assertThat(tempDir.resolve("revisar")).doesNotExist();
-        assertThat(pdfNames(tempDir.resolve("originais"))).containsExactlyInAnyOrder("01-portal.pdf", "02-abrasf.pdf");
-        assertThat(Files.readString(tempDir.resolve("logs").resolve("execucao.log")))
+        assertThat(pdfNames(backendCompany("empresa_piloto").resolve("originais")))
+                .containsExactlyInAnyOrder("01-portal.pdf", "02-abrasf.pdf");
+        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
                 .contains("DUPLICATE")
                 .contains("ABRASF duplicada descartada; Portal Nacional equivalente ja existe");
+    }
+
+    @Test
+    void batchDiscardsSameLayoutFiscalDuplicate() throws Exception {
+        Path input = tempDir.resolve("entrada");
+        Files.createDirectories(input);
+        writeTextPdf(input.resolve("01-portal.pdf"), portalDuplicateText());
+        writeTextPdf(input.resolve("02-portal-copia.pdf"), portalDuplicateText());
+        Path config = writeConfig("25.014.360/0001-73");
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(summary.count(ProcessingStatus.DUPLICATE)).isEqualTo(1);
+        assertThat(pdfNames(tempDir.resolve("processados")))
+                .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.pdf");
     }
 
     @Test
@@ -150,7 +282,7 @@ class BatchModeRunnerTest {
         assertThat(input).isEmptyDirectory();
         assertThat(pdfNames(tempDir.resolve("processados")))
                 .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.pdf");
-        assertThat(Files.readString(tempDir.resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
                 .contains("ABRASF duplicada anterior removida por Portal Nacional equivalente");
     }
 
@@ -171,7 +303,7 @@ class BatchModeRunnerTest {
         new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
 
         assertThat(outside).exists();
-        assertThat(Files.readString(companyRoot.resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
                 .contains("fora da pasta da empresa");
     }
 
@@ -200,6 +332,10 @@ class BatchModeRunnerTest {
 
     private Path writeConfig(String taxId, Path root) throws Exception {
         Path config = tempDir.resolve("empresas.yaml");
+        return writeConfigAt(config, taxId, root);
+    }
+
+    private Path writeConfigAt(Path config, String taxId, Path root) throws Exception {
         Files.writeString(config, """
                 empresas:
                   - id: empresa_piloto
@@ -249,11 +385,16 @@ class BatchModeRunnerTest {
     }
 
     private static void rewriteDuplicateIndexDestination(Path root, Path destination) throws Exception {
-        Path index = root.resolve("logs").resolve("duplicadas.idx");
+        Path index = root.getParent().resolve("backend").resolve("empresas")
+                .resolve("empresa_piloto").resolve("duplicadas.idx");
         String line = Files.readString(index).lines().findFirst().orElseThrow();
         String[] parts = line.split("\t", -1);
         parts[3] = destination.toString();
         Files.writeString(index, String.join("\t", parts) + System.lineSeparator());
+    }
+
+    private Path backendCompany(String id) {
+        return tempDir.resolve("backend").resolve("empresas").resolve(id);
     }
 
     private static String portalDuplicateText() {
@@ -359,6 +500,43 @@ class BatchModeRunnerTest {
                       ledger: "logs/processados.idx"
                 %s
                 """.formatted(tempDir.toString().replace("\\", "/"), correctCompany));
+        return config;
+    }
+
+    private Path writeSourceOnlyConfig() throws Exception {
+        Path config = tempDir.resolve("empresas_origem.yaml");
+        Files.writeString(config, """
+                empresas:
+                  - id: origem_generica
+                    habilitada: true
+                    somenteOrigem: true
+                    cnpjTomador: "000"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/origem_generica"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                  - id: empresa_correta
+                    habilitada: true
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/empresa_correta"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                """.formatted(
+                tempDir.toString().replace("\\", "/"),
+                tempDir.toString().replace("\\", "/")));
         return config;
     }
 }

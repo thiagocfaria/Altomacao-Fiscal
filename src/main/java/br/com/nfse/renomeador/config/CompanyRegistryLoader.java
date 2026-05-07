@@ -59,13 +59,17 @@ public final class CompanyRegistryLoader {
         if (!(foldersNode instanceof Map<?, ?> map)) {
             throw new IllegalArgumentException("pastas e obrigatorio");
         }
+        String cancelled = optionalString(map, "canceladas", "canceladas");
+        if ("revisar/canceladas".equals(cancelled)) {
+            cancelled = "canceladas";
+        }
         return new CompanyFolders(
                 requiredString(map, "entrada"),
                 optionalString(map, "processados", "processados"),
                 optionalString(map, "revisar", "revisar"),
                 optionalString(map, "originais", "originais"),
                 optionalString(map, "logs", "logs"),
-                optionalString(map, "canceladas", "revisar/canceladas"),
+                cancelled,
                 optionalString(map, "ledger", "logs/processados.idx")
         );
     }

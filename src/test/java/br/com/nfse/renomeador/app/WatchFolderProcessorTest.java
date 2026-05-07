@@ -36,7 +36,8 @@ class WatchFolderProcessorTest {
         var summary = new WatchFolderProcessor().processExisting(List.of(companyPath), true);
 
         assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
-        assertThat(tempDir.resolve("logs").resolve("execucao.log")).exists();
+        assertThat(tempDir.resolve("backend").resolve("empresas")
+                .resolve("empresa_piloto").resolve("execucao.log")).exists();
     }
 
     @Test
@@ -49,9 +50,9 @@ class WatchFolderProcessorTest {
 
         new WatchFolderProcessor().processExisting(List.of(first, second), true);
 
-        assertThat(Files.readString(first.root().resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_piloto").resolve("execucao.log")))
                 .contains("SUMMARY\ttotal=1");
-        assertThat(Files.readString(second.root().resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany("empresa_vazia").resolve("execucao.log")))
                 .contains("SUMMARY\ttotal=0");
     }
 
@@ -122,6 +123,10 @@ class WatchFolderProcessorTest {
                 root,
                 Optional.empty()
         );
+    }
+
+    private Path backendCompany(String id) {
+        return tempDir.resolve("backend").resolve("empresas").resolve(id);
     }
 
     private static WatchEvent<Path> event(WatchEvent.Kind<Path> kind, Path context) {

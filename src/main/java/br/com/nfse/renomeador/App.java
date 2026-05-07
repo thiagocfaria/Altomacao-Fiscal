@@ -69,12 +69,19 @@ public final class App {
         @Option(names = "--homologacao", description = "Preserva os PDFs de entrada.")
         boolean homologation;
 
+        @Option(names = "--planilha", description = "Planilha Excel usada para atualizar o empresas.yaml antes da execucao.")
+        Path spreadsheet;
+
         Optional<String> companyId() {
             return Optional.ofNullable(companyId).filter(value -> !value.isBlank());
         }
 
         Optional<YearMonth> month() {
             return Optional.ofNullable(month).filter(value -> !value.isBlank()).map(YearMonth::parse);
+        }
+
+        Optional<Path> spreadsheet() {
+            return Optional.ofNullable(spreadsheet);
         }
     }
 
@@ -83,6 +90,7 @@ public final class App {
         @Override
         public Integer call() throws Exception {
             try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
+                refreshFromSpreadsheetIfPresent(this);
                 ProcessingSummary summary = new BatchModeRunner().run(config, companyId(), month(), homologation);
                 System.out.printf("Processados=%d OK=%d Canceladas=%d Duplicadas=%d Ignorados=%d Erros=%d%n",
                         summary.total(),
@@ -101,7 +109,7 @@ public final class App {
         @Override
         public Integer call() throws Exception {
             try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
-                new WatchModeRunner().run(config, companyId(), month(), homologation);
+                new WatchModeRunner().run(config, companyId(), month(), homologation, spreadsheet());
             }
             return 0;
         }
@@ -125,15 +133,20 @@ public final class App {
         @Option(names = "--saida", required = true, description = "Arquivo empresas.yaml a gerar.")
         Path output;
 
-        @Option(names = "--aba", description = "Nome da aba; se omitido, usa a primeira.")
+        @Option(names = "--aba", description = "Nome da aba; se omitido, usa CADASTRO ou a planilha fiscal legada.")
         String sheet;
+
+        @Option(names = "--mes", description = "Mes no formato AAAA-MM; se omitido, usa o mes atual.")
+        String month;
 
         @Option(names = "--sobrescrever", description = "Sobrescreve o YAML de saida se ja existir.")
         boolean overwrite;
 
         @Override
         public Integer call() throws Exception {
-            int imported = new ExcelCompanyImporter().importToYaml(spreadsheet, output, sheet, overwrite);
+            int imported = new ExcelCompanyImporter().importToYaml(spreadsheet, output, sheet, overwrite,
+                    Optional.ofNullable(month).filter(value -> !value.isBlank()).map(YearMonth::parse),
+                    java.time.LocalDate.now());
             new CompanyRegistryValidator().validate(new CompanyRegistryLoader().load(output));
             System.out.printf("Empresas importadas=%d%n", imported);
             return 0;
@@ -141,7 +154,7 @@ public final class App {
     }
 
     @Command(name = "preparar-planilha", mixinStandardHelpOptions = true,
-            description = "Cria uma copia profissional da planilha fiscal para preencher CAMINHO REST.")
+            description = "Cria uma copia profissional da planilha fiscal com DASHBOARD, CADASTRO e CONFIG.")
     public static final class PrepareExcelCommand implements Callable<Integer> {
         @Option(names = "--entrada", required = true, description = "Planilha .xlsx ou .xlsm original.")
         Path input;
@@ -167,6 +180,13 @@ public final class App {
             new CompanyRegistryValidator().validate(new CompanyRegistryLoader().load(config));
             System.out.println("Configuracao valida");
             return 0;
+        }
+    }
+
+    private static void refreshFromSpreadsheetIfPresent(BaseCommand command) throws Exception {
+        if (command.spreadsheet().isPresent()) {
+            new ExcelCompanyImporter().importToYaml(command.spreadsheet().orElseThrow(), command.config, "", true,
+                    command.month(), java.time.LocalDate.now());
         }
     }
 }

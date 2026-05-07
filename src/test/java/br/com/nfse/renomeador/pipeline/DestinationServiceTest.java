@@ -46,7 +46,7 @@ class DestinationServiceTest {
     @Test
     void sendsReviewStatusesToReviewAndAvoidsCollision() throws Exception {
         Path source = source("revisar.pdf");
-        Path review = tempDir.resolve("revisar");
+        Path review = tempDir.resolve("backend").resolve("empresas").resolve("empresa_a").resolve("revisar");
         Files.createDirectories(review);
         Files.writeString(review.resolve("NFSE_1.pdf"), "existente");
 

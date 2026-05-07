@@ -29,11 +29,14 @@ class BatchModeRunnerIT {
         assertThat(tempDir.resolve("processados"))
                 .isDirectoryContaining(path -> path.getFileName().toString()
                         .equals("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_140,00.pdf"));
-        assertThat(tempDir.resolve("originais")).isDirectoryContaining(path ->
+        Path backendCompany = tempDir.resolve("backend").resolve("empresas").resolve("empresa_piloto");
+        assertThat(backendCompany.resolve("originais")).isDirectoryContaining(path ->
                 path.getFileName().toString().equals("NF 9 OK.pdf"));
-        assertThat(Files.readString(tempDir.resolve("logs").resolve("execucao.log")))
+        assertThat(Files.readString(backendCompany.resolve("execucao.log")))
                 .contains("OK")
                 .contains("duracaoMs=");
+        assertThat(tempDir.resolve("logs")).doesNotExist();
+        assertThat(tempDir.resolve("originais")).doesNotExist();
     }
 
     private Path writeConfig() throws Exception {
@@ -48,11 +51,7 @@ class BatchModeRunnerIT {
                     pastas:
                       entrada: "entrada"
                       processados: "processados"
-                      revisar: "revisar"
-                      originais: "originais"
-                      logs: "logs"
-                      canceladas: "revisar/canceladas"
-                      ledger: "logs/processados.idx"
+                      canceladas: "canceladas"
                 """.formatted(tempDir.toString().replace("\\", "/")));
         return config;
     }

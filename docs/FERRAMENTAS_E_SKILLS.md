@@ -1,7 +1,7 @@
 # Ferramentas e Skills — Renomeador NFS-e
 
-Catalogo completo de todas as ferramentas e skills ativas neste projeto.
-Ultima atualizacao: 2026-04-30.
+Catalogo das ferramentas e skills ativas neste projeto.
+Ultima atualizacao: 2026-05-07.
 
 ---
 
@@ -57,7 +57,7 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 |---|---|
 | Arquivo | `.claude/skills/guardiao-arquitetura-nfse/SKILL.md` |
 | Ativa quando | Mudanca em nome de pacote, fronteira entre camadas, novo modulo Java |
-| Funcao | Protege a separacao `domain/parser/pipeline/watcher/config/io/app` |
+| Funcao | Protege a separacao descrita em `AGENTS.md`: `config`, `extraction`, `files`, `layout`, `ledger`, `naming`, `parser`, `pdf`, `processing`, `text` e orquestracao em `app`/pipeline |
 | Mapa que conhece | Arquitetura completa de pacotes do `nfse-renomeador` |
 
 ### implementacao-java
@@ -67,7 +67,7 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 | Arquivo | `.claude/skills/implementacao-java/SKILL.md` |
 | Ativa quando | Qualquer mudanca relevante de codigo Java |
 | Funcao | Garante: try-with-resources em PDDocument, Pattern estatico, records imutaveis, Optional em vez de null, sem System.out |
-| Checklist | `mvn compile` → `mvn test` → `mvn spotbugs:check` → `mvn checkstyle:check` |
+| Checklist | `mvn compile` → `mvn test`; quando tocar pipeline, parser ou PDF real, tambem `mvn verify -Pintegration` |
 
 ### layout-nfse
 
@@ -84,7 +84,7 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 |---|---|
 | Arquivo | `.claude/skills/equipe-testes-nfse/SKILL.md` |
 | Ativa quando | Validacao, regressao, mudanca em parser/pipeline, risco de pular etapas |
-| Funcao | Escada de testes: unit → integracao PDF real → e2e sintetico → soak watcher → JMH |
+| Funcao | Escada de testes: unitario → integracao PDF real → e2e sintetico → soak watcher → JMH quando houver mudanca relevante em extracao/parser |
 | KPI principal | `ms_por_nota` (ms por NF, modo batch, JVM aquecida) |
 
 ### validacao-extracao-pdf
@@ -102,7 +102,7 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 |---|---|
 | Arquivo | `.claude/skills/validacao-performance-java/SKILL.md` |
 | Ativa quando | Mudanca no hot path: parser, watcher, pipeline |
-| Funcao | KPIs com faixas verde/amarelo/vermelho, como registrar corretamente, JMH e jcmd |
+| Funcao | KPIs com faixas verde/amarelo/vermelho, como registrar corretamente e como medir heap do watcher com `jcmd` |
 | KPIs | `ms_por_nota`, `ms_por_lote`, heap watcher 30min, latencia WatchService |
 
 ### pesquisa-tecnica-java
@@ -116,62 +116,19 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 
 ---
 
-## Stack Java — resumo para o pom.xml
+## Stack Java — resumo do pom.xml
 
-```xml
-<!-- Java 17 -->
-<java.version>17</java.version>
+| Area | Dependencias ativas |
+|---|---|
+| Runtime | Java 17 |
+| PDF | Apache PDFBox |
+| CLI | Picocli |
+| YAML | Jackson YAML |
+| Excel | Apache POI |
+| Logging | SLF4J/Logback e ponte `log4j-to-slf4j` para logs internos do POI |
+| Testes | JUnit 5 e AssertJ |
 
-<!-- PDF -->
-<dependency>
-  <groupId>org.apache.pdfbox</groupId>
-  <artifactId>pdfbox</artifactId>
-  <version>3.0.x</version>
-</dependency>
-
-<!-- CLI -->
-<dependency>
-  <groupId>info.picocli</groupId>
-  <artifactId>picocli</artifactId>
-  <version>4.7.x</version>
-</dependency>
-
-<!-- Config YAML -->
-<dependency>
-  <groupId>com.fasterxml.jackson.dataformat</groupId>
-  <artifactId>jackson-dataformat-yaml</artifactId>
-  <version>2.x</version>
-</dependency>
-
-<!-- Logging -->
-<dependency>
-  <groupId>ch.qos.logback</groupId>
-  <artifactId>logback-classic</artifactId>
-  <version>1.5.x</version>
-</dependency>
-
-<!-- Testes -->
-<dependency>
-  <groupId>org.junit.jupiter</groupId>
-  <artifactId>junit-jupiter</artifactId>
-  <version>5.x</version>
-  <scope>test</scope>
-</dependency>
-<dependency>
-  <groupId>org.assertj</groupId>
-  <artifactId>assertj-core</artifactId>
-  <version>3.x</version>
-  <scope>test</scope>
-</dependency>
-
-<!-- Benchmark (escopo test) -->
-<dependency>
-  <groupId>org.openjdk.jmh</groupId>
-  <artifactId>jmh-core</artifactId>
-  <version>1.37</version>
-  <scope>test</scope>
-</dependency>
-```
+JMH e ferramentas como SpotBugs/Checkstyle nao estao no baseline atual do `pom.xml`. Se entrarem no projeto, precisam passar pelo checklist de `docs/operacao/MCP_AVALIACAO.md` e ser registradas aqui.
 
 ---
 
@@ -195,7 +152,7 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 - [ ] Rodar `mvn test`
 - [ ] Reindexar o projeto no `codebase-memory-mcp`, se ele estiver disponivel
 - [ ] Ajustar o arquivo externo `empresas.yaml` para a pasta real de homologacao
-- [ ] Configurar Maven profiles `integration` e `jmh`
+- [ ] Rodar `mvn verify -Pintegration` quando houver PDFs reais disponiveis para validacao
 
 ### Nunca precisa fazer manualmente
 

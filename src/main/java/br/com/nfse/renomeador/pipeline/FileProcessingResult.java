@@ -15,6 +15,7 @@ public record FileProcessingResult(
         long durationMillis
 ) {
     public static final String REASON_UNSTABLE_FILE = "Arquivo ainda nao esta estavel";
+    public static final String REASON_ALREADY_REGISTERED = "Arquivo ja registrado no ledger";
 
     public static FileProcessingResult skipped(String companyId, Path source, String reason) {
         return skipped(companyId, source, reason, 0L);

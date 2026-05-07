@@ -1,10 +1,10 @@
 # SITUACAO ATUAL
 
-Atualizado em 06/05/2026.
+Atualizado em 07/05/2026.
 
 ## 1. Onde estamos
 
-**Fase:** V1.1 de preparacao operacional implementada e validada em testes. O lote real inicial em pasta REST errada rodou sem erros tecnicos; o proximo passo e validar no Windows/Excel oficial da operacao e fechar o pacote P1.
+**Fase:** V1.2 de limpeza operacional implementada e validada em testes unitarios e de integracao. A pasta REST do cliente agora fica focada em saidas operacionais, enquanto logs, ledger, originais tecnicos e indices ficam no backend do sistema.
 
 - Repositorio Git inicializado e preparado para publicar no GitHub.
 - Projeto Java 17/Maven criado em `src/main/java`.
@@ -41,21 +41,41 @@ Atualizado em 06/05/2026.
 - [x] Reexecucao sem duplicar processamento via ledger.
 - [x] `WatchModeRunner`.
 - [x] Importacao de planilha Excel `.xlsx`/`.xlsm` para `empresas.yaml`.
-- [x] Importacao especifica do `Dashboard Fiscal`: `CLIENTE`, `CNPJ` do tomador, `CAMINHO REST` na linha 2.
-- [x] Comando para preparar copia profissional da planilha: `config preparar-planilha`.
-- [x] `PLANILHA_FISCAL_MODELO.xlsm` gerada, preservando o projeto VBA.
-- [x] Planilha modelo preparada com visual PROTONS, cabecalho congelado, filtro, coluna `CIDADE`, coluna REST destacada, CNPJs invalidos em amarelo e 30 linhas extras para novos clientes.
+- [x] Importacao especifica da aba `CADASTRO`; se `--aba` nao for informado, o sistema usa a aba mensal do mes de execucao ou de `--mes`, como `CADASTRO MAIO`; planilha legada `Dashboard Fiscal` continua compativel com `CLIENTE`, `CNPJ` do tomador e `CAMINHO REST` na linha 2.
+- [x] Comando para preparar copia profissional da planilha: `config preparar-planilha`, gerando `DASHBOARD`, `CADASTRO` e `CONFIG`.
+- [x] `PLANILHA_FISCAL.xlsm` trazida do deploy/GitHub, preservando o projeto VBA.
+- [x] Planilha modelo preparada com visual PROTONS futurista, dashboard contabil inicial, cadastro operacional com cabecalho congelado/filtro, coluna `CIDADE`, `CAMINHO REST`, `CAMINHO DMS`, `CAMINHO ENTRADAS`, `CAMINHO SAIDAS`, `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL`, `SENHA CERTIFICADO DIGITAL` opcional, `SOMENTE ORIGEM`, CNPJs invalidos em amarelo e 30 linhas extras para novos clientes.
 - [x] Importacao da planilha preparada validada: 88 empresas importadas para YAML temporario.
 - [x] `config check` aprovado sobre o YAML temporario importado da planilha preparada.
 - [x] Validacao tecnica de `empresas.yaml` via CLI.
 - [x] Watcher com varredura inicial, `ENTRY_CREATE`, `ENTRY_MODIFY` e revarredura em `OVERFLOW`.
+- [x] Watcher recarrega o cadastro quando o `empresas.yaml` muda e passa a observar novos caminhos ativos.
+- [x] Watcher pode receber `--planilha`; quando a planilha e salva, ele reimporta o Excel, recarrega caminhos e processa pendencias.
 - [x] Watcher tenta novamente quando o PDF ainda esta sendo copiado e nao estabilizou.
 - [x] Ledger reconhece arquivo ja processado por SHA-256 mesmo quando o caminho muda.
 - [x] Duplicidade fiscal Portal Nacional x ABRASF detectada por campos fiscais, com preferencia pelo Portal Nacional.
+- [x] Duplicidade fiscal no mesmo layout tambem descartada quando a chave fiscal completa bate.
 - [x] Remocao de duplicata operacional travada para nao apagar arquivo fora da pasta da empresa.
 - [x] Nota encontrada na pasta REST errada pode ser processada pelo cadastro correto e enviada para as subpastas da REST correta pelo CNPJ do tomador.
-- [x] Nota roteada da REST errada para a REST correta agora registra log operacional tambem no cliente correto e grava ledger do cliente correto.
+- [x] Pasta marcada como `SOMENTE ORIGEM` tambem roteia a nota pelo CNPJ do tomador, sem virar destino operacional.
+- [x] Nota em pasta REST errada sem caminho ativo no Excel fica em `TOMADOR NAO ENCONTRADO/`, com nome contendo tomador, CNPJ e valor.
+- [x] Nota pendente em `TOMADOR NAO ENCONTRADO/` e recuperada quando o tomador ganha caminho REST ativo; a pasta pendente e apagada se ficar vazia.
+- [x] Copia pendente em `TOMADOR NAO ENCONTRADO/` e descartada quando o mesmo PDF ja consta processado no destino correto.
+- [x] Nota roteada da REST errada para a REST correta agora registra log operacional e ledger no backend do cadastro correto.
+- [x] Logs, ledger, indice de duplicidade, originais tecnicos e `split-work` movidos para `backend/empresas/<empresa_id>/`.
+- [x] Notas retidas agora vao para `RETIDO/`; canceladas vao para `canceladas/`.
 - [x] Diagnostico tecnico da planilha modelo confirma pacote `.xlsm` macro-habilitado com `vbaProject.bin`, `Worksheet_BeforeDoubleClick` e `FileDialogFolderPicker`; se o duplo clique nao funcionar no Windows, verificar bloqueio de macros/confianca do Excel.
+- [x] `PLANILHA_FISCAL.xlsm` agora usa abas `DASHBOARD`, `CADASTRO ABRIL`, `CADASTRO MAIO`, `CADASTRO JUNHO`, `CADASTRO JULHO`, `CADASTRO AGOSTO`, `CADASTRO SETEMBRO`, `CADASTRO OUTUBRO`, `CADASTRO NOVEMBRO`, `CADASTRO DEZEMBRO` e `CONFIG`; `CADASTRO ABRIL` preserva os dados/caminhos atuais e as abas futuras copiam clientes/dados fixos sem copiar caminhos mensais.
+- [x] Corrigido problema visual da planilha moderna: linhas herdadas como ocultas agora sao reexibidas pelo preparador, sem filtro ativo escondendo clientes.
+- [x] Dashboard inicial ajustado para operacao contabil: total de clientes, NF hoje, XML hoje, certificados em alerta, pendencias de cadastro e os 3 certificados digitais mais proximos do vencimento.
+- [x] Correcao visual do dashboard apos print: titulo com acentos, certificados como "mais proximos de vencer", painel reduzido para `A:L`, alertas em cards e entradas/saidas removidas das pendencias atuais.
+- [x] Dashboard visual refeito no estilo painel de sistema: canvas expandido para `A:S`, topo com identidade `NFSE`, cards grandes para clientes/NF/XML/certificados, painel de certificados e saude operacional em cards, preservando `CADASTRO` como fonte real e o projeto VBA do `.xlsm`.
+- [x] Dashboard revisado visualmente: selos `CLI`, `NF`, `XML` e `CERT` ampliados, area externa do painel preenchida em cinza escuro ate `AH60`, formulas marcadas para recalculo no Excel e `PLANILHA_FISCAL.xlsm` regenerada preservando VBA.
+- [x] Card `CERT. ALERTA` corrigido: fica verde sem vencimentos proximos, amarelo quando houver certificados vencendo em ate 30 dias e vermelho quando houver certificados com menos de 15 dias; o numero exibido prioriza a faixa mais critica.
+- [x] Cadastro mensal implementado na planilha: `CAMINHO ENTRADA/SAIDA` substitui as duas colunas antigas separadas, caminhos DMS/REST/ENTRADA-SAIDA ficam em branco nas abas futuras e certificado digital permanece copiado para todos os meses.
+- [x] `batch`, `watch` e `config import-excel` usam a aba mensal correta quando recebem `--mes`; sem `--mes`, usam o mes atual da execucao.
+- [x] Importador ignora linha mensal marcada como `SOMENTE ORIGEM` quando ainda nao existe caminho do mes preenchido, evitando bloqueio nas abas futuras clonadas.
+- [x] `CADASTRO MAIO` da planilha real importado em YAML temporario em 07/05/2026: 124 empresas importadas e `config check` aprovado.
 - [x] Log operacional registra `duracaoMs` por arquivo.
 - [x] Scripts Windows em `scripts/windows/`, incluindo `compilar.bat` e guarda quando o JAR ainda nao existe.
 - [x] Coluna `SOMENTE ORIGEM` usada para diferenciar pasta de entrada generica de CNPJ invalido digitado errado.
@@ -64,9 +84,9 @@ Atualizado em 06/05/2026.
 - [x] CLI exibe erros operacionais como `ERRO: ...`, sem stack trace Java para uso normal.
 - [x] JDK 17 portatil instalado em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`.
 - [x] Maven 3.9.9 portatil instalado em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`.
-- [x] `mvn test` aprovado em 06/05/2026: 97 testes, 0 falhas.
-- [x] `mvn verify -Pintegration` aprovado em 06/05/2026: 97 testes unitarios + 1 teste de integracao, 0 falhas.
-- [x] `mvn package` aprovado.
+- [x] `mvn test` aprovado em 07/05/2026: 113 testes, 0 falhas.
+- [x] `mvn verify -Pintegration` aprovado em 07/05/2026: 113 testes unitarios + 1 teste de integracao, 0 falhas.
+- [x] `mvn package` aprovado em 07/05/2026: 113 testes, 0 falhas.
 - [x] Jar validado com `--help`.
 - [x] Homologacao controlada com PDFs modelo em pasta temporaria.
 - [x] Reexecucao validada: 10 arquivos ignorados por ledger, 0 erros.
@@ -74,7 +94,7 @@ Atualizado em 06/05/2026.
 
 ## 3. Ainda falta para fechar a V1
 
-- [ ] Importar `PLANILHA_FISCAL_MODELO.xlsm` para `empresas.yaml` definitivo e validar caminhos.
+- [ ] Importar `PLANILHA_FISCAL.xlsm` para `empresas.yaml` definitivo e validar caminhos.
 - [ ] Executar teste no Windows/Excel oficial da operacao, incluindo macro de duplo clique e scripts `.bat`.
 - [ ] Conferir logs e relatorio operacional com o responsavel.
 - [ ] Definir rotina final: `batch --homologacao`, `batch` real agendado ou `watch` continuo, sem rodar `batch` e `watch` simultaneamente com o mesmo `empresas.yaml`.
@@ -84,7 +104,7 @@ Atualizado em 06/05/2026.
 Validar o pacote P1 no Windows/Excel oficial da operacao:
 
 ```text
-config import-excel -> config check -> batch --homologacao -> conferir logs/relatorio -> escolher batch agendado OU watch continuo -> teste .bat/watch -> liberar P1
+config import-excel -> config check -> batch --homologacao -> conferir backend/empresas/<id>/execucao.log e pastas operacionais -> escolher batch agendado OU watch continuo com --planilha -> teste .bat/watch -> liberar P1
 ```
 
 A homologacao controlada e a homologacao real inicial ja foram feitas fora do repositorio, preservando os PDFs de entrada quando necessario. O proximo teste deve ser no Windows/Excel oficial da operacao.
@@ -101,11 +121,11 @@ mvn -Dmaven.repo.local=/tmp/m2-nfse test
 mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
 mvn -Dmaven.repo.local=/tmp/m2-nfse package
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm --saida C:\caminho\PLANILHA_FISCAL_MODELO.xlsm
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha C:\caminho\PLANILHA_FISCAL_MODELO.xlsm --saida C:\caminho\empresas.yaml --sobrescrever
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm --saida C:\caminho\PLANILHA_FISCAL.xlsm
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha C:\caminho\PLANILHA_FISCAL.xlsm --saida C:\caminho\empresas.yaml --sobrescrever --mes 2026-05
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config check --config C:\caminho\empresas.yaml
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config empresas.yaml --homologacao
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config empresas.yaml
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config empresas.yaml --homologacao --mes 2026-05
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config empresas.yaml --planilha PLANILHA_FISCAL.xlsm --mes 2026-05
 ```
 
 ## 6. Resultado da homologacao controlada
@@ -123,3 +143,5 @@ Ledger: gerado
 Log operacional: gerado
 Reexecucao: Processados=0 OK=0 Canceladas=0 Ignorados=10 Erros=0
 ```
+
+Esse resultado e historico da homologacao anterior. Na regra atual da V1.2, `originais`, `ledger`, log e revisoes tecnicas ficam em `backend/empresas/<empresa_id>/`; a REST do cliente fica limitada a `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/` quando necessario.

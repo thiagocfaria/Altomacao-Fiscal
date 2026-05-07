@@ -15,11 +15,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.Month;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 public final class ExcelCompanyImporter {
@@ -35,12 +39,17 @@ public final class ExcelCompanyImporter {
     }
 
     public int importToYaml(Path workbookPath, Path outputYaml, String sheetName, boolean overwrite) throws IOException {
+        return importToYaml(workbookPath, outputYaml, sheetName, overwrite, Optional.empty(), LocalDate.now());
+    }
+
+    public int importToYaml(Path workbookPath, Path outputYaml, String sheetName, boolean overwrite,
+                            Optional<YearMonth> month, LocalDate executionDate) throws IOException {
         if (Files.exists(outputYaml) && !overwrite) {
             throw new IllegalArgumentException("Arquivo de saida ja existe: " + outputYaml);
         }
         try (InputStream input = Files.newInputStream(workbookPath);
              Workbook workbook = WorkbookFactory.create(input)) {
-            List<ImportedCompany> companies = readCompanies(sheet(workbook, sheetName));
+            List<ImportedCompany> companies = readCompanies(sheet(workbook, sheetName, month, executionDate));
             if (companies.isEmpty()) {
                 throw new IllegalArgumentException("Nenhuma empresa valida encontrada na planilha");
             }
@@ -57,6 +66,11 @@ public final class ExcelCompanyImporter {
     }
 
     private static Sheet sheet(Workbook workbook, String sheetName) {
+        return sheet(workbook, sheetName, Optional.empty(), LocalDate.now());
+    }
+
+    private static Sheet sheet(Workbook workbook, String sheetName, Optional<YearMonth> month,
+                               LocalDate executionDate) {
         if (sheetName != null && !sheetName.isBlank()) {
             Sheet selected = workbook.getSheet(sheetName);
             if (selected == null) {
@@ -67,7 +81,44 @@ public final class ExcelCompanyImporter {
         if (workbook.getNumberOfSheets() == 0) {
             throw new IllegalArgumentException("Planilha sem abas");
         }
+        Sheet monthly = workbook.getSheet(monthlySheetName(month.orElse(YearMonth.from(executionDate))));
+        if (monthly != null) {
+            return monthly;
+        }
+        Sheet cadastro = workbook.getSheet("CADASTRO");
+        if (cadastro != null) {
+            return cadastro;
+        }
+        Sheet cadastroApril = workbook.getSheet("CADASTRO ABRIL");
+        if (cadastroApril != null) {
+            return cadastroApril;
+        }
+        Sheet dashboardFiscal = workbook.getSheet("Dashboard Fiscal");
+        if (dashboardFiscal != null) {
+            return dashboardFiscal;
+        }
         return workbook.getSheetAt(0);
+    }
+
+    private static String monthlySheetName(YearMonth month) {
+        return "CADASTRO " + monthName(month.getMonth());
+    }
+
+    private static String monthName(Month month) {
+        return switch (month) {
+            case JANUARY -> "JANEIRO";
+            case FEBRUARY -> "FEVEREIRO";
+            case MARCH -> "MARCO";
+            case APRIL -> "ABRIL";
+            case MAY -> "MAIO";
+            case JUNE -> "JUNHO";
+            case JULY -> "JULHO";
+            case AUGUST -> "AGOSTO";
+            case SEPTEMBER -> "SETEMBRO";
+            case OCTOBER -> "OUTUBRO";
+            case NOVEMBER -> "NOVEMBRO";
+            case DECEMBER -> "DEZEMBRO";
+        };
     }
 
     private static List<ImportedCompany> readCompanies(Sheet sheet) {
@@ -112,8 +163,7 @@ public final class ExcelCompanyImporter {
                 continue;
             }
             if (sourceOnly && path.isBlank()) {
-                throw new IllegalArgumentException("SOMENTE ORIGEM exige CAMINHO REST preenchido na linha "
-                        + (rowIndex + 1));
+                continue;
             }
             companies.add(new ImportedCompany(uniqueIdFor(name, idCounts), name, taxId, path.isBlank(),
                     path.isBlank() ? Path.of(".") : Path.of(path), sourceOnly));
@@ -294,11 +344,7 @@ public final class ExcelCompanyImporter {
                     .append("    pastas:\n")
                     .append("      entrada: \".\"\n")
                     .append("      processados: \"processados\"\n")
-                    .append("      revisar: \"revisar\"\n")
-                    .append("      originais: \"originais\"\n")
-                    .append("      logs: \"logs\"\n")
-                    .append("      canceladas: \"revisar/canceladas\"\n")
-                    .append("      ledger: \"logs/processados.idx\"\n");
+                    .append("      canceladas: \"canceladas\"\n");
         }
         return yaml.toString();
     }

@@ -1,5 +1,6 @@
 package br.com.nfse.renomeador.pipeline;
 
+import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.config.ResolvedCompanyPath;
 import br.com.nfse.renomeador.processing.ProcessingStatus;
 
@@ -10,9 +11,19 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 public final class DestinationService {
+    public static final String RETAINED_FOLDER = "RETIDO";
+    public static final String MISSING_CUSTOMER_FOLDER = "TOMADOR NAO ENCONTRADO";
+
     public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
                                   String fileName, boolean preserveInput) throws IOException {
-        Path directory = destinationDirectory(companyPath, status);
+        return send(source, companyPath, status, fileName, preserveInput, false,
+                CompanyRouteDirectory.single(companyPath));
+    }
+
+    public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
+                                  String fileName, boolean preserveInput, boolean retained,
+                                  CompanyRouteDirectory routes) throws IOException {
+        Path directory = destinationDirectory(companyPath, status, retained, routes);
         Files.createDirectories(directory);
         Path destination = nextAvailable(directory.resolve(fileName));
         if (preserveInput) {
@@ -25,13 +36,34 @@ public final class DestinationService {
 
     public DestinationResult sendTechnicalError(Path source, ResolvedCompanyPath companyPath,
                                                 boolean preserveInput) throws IOException {
+        return sendTechnicalError(source, companyPath, preserveInput, CompanyRouteDirectory.single(companyPath));
+    }
+
+    public DestinationResult sendTechnicalError(Path source, ResolvedCompanyPath companyPath,
+                                                boolean preserveInput, CompanyRouteDirectory routes) throws IOException {
         String fileName = "ERRO_PROCESSAMENTO_" + source.getFileName();
-        return send(source, companyPath, ProcessingStatus.MISSING_REQUIRED, fileName, preserveInput);
+        return send(source, companyPath, ProcessingStatus.MISSING_REQUIRED, fileName, preserveInput, false, routes);
     }
 
     public DestinationResult sendToReview(Path source, ResolvedCompanyPath companyPath, String fileName,
                                           boolean preserveInput) throws IOException {
-        Path directory = PathsForCompany.review(companyPath);
+        return sendToReview(source, companyPath, fileName, preserveInput, CompanyRouteDirectory.single(companyPath));
+    }
+
+    public DestinationResult sendToReview(Path source, ResolvedCompanyPath companyPath, String fileName,
+                                          boolean preserveInput, CompanyRouteDirectory routes) throws IOException {
+        Path directory = TechnicalPaths.review(routes, companyPath);
+        return sendToDirectory(source, directory, fileName, preserveInput);
+    }
+
+    public DestinationResult sendToMissingCustomer(Path source, ResolvedCompanyPath companyPath, String fileName,
+                                                   boolean preserveInput) throws IOException {
+        Path directory = companyPath.root().resolve(MISSING_CUSTOMER_FOLDER);
+        return sendToDirectory(source, directory, fileName, preserveInput);
+    }
+
+    private static DestinationResult sendToDirectory(Path source, Path directory, String fileName,
+                                                     boolean preserveInput) throws IOException {
         Files.createDirectories(directory);
         Path destination = nextAvailable(directory.resolve(fileName));
         if (preserveInput) {
@@ -42,11 +74,12 @@ public final class DestinationService {
         return new DestinationResult(destination, preserveInput);
     }
 
-    private static Path destinationDirectory(ResolvedCompanyPath companyPath, ProcessingStatus status) {
+    private static Path destinationDirectory(ResolvedCompanyPath companyPath, ProcessingStatus status,
+                                             boolean retained, CompanyRouteDirectory routes) {
         return switch (status) {
-            case OK -> PathsForCompany.processed(companyPath);
+            case OK -> retained ? companyPath.root().resolve(RETAINED_FOLDER) : PathsForCompany.processed(companyPath);
             case CANCELLED -> PathsForCompany.cancelled(companyPath);
-            case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT, DUPLICATE -> PathsForCompany.review(companyPath);
+            case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT, DUPLICATE -> TechnicalPaths.review(routes, companyPath);
         };
     }
 

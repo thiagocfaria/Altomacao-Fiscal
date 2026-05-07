@@ -29,6 +29,7 @@ final class RuntimeCompanyPaths {
     CompanyRouteDirectory loadRoutes(Path config, Optional<String> companyId, Optional<YearMonth> month) throws IOException {
         CompanyRegistry registry = loader.load(config);
         validator.validateBasics(registry);
+        Path backendRoot = backendRootFor(config);
         List<ResolvedCompanyPath> allActivePaths = registry.companies().stream()
                 .filter(CompanyConfig::enabled)
                 .flatMap(company -> resolver.resolve(company, month, LocalDate.now()).stream())
@@ -39,6 +40,12 @@ final class RuntimeCompanyPaths {
                 .filter(CompanyConfig::enabled)
                 .flatMap(company -> resolver.resolve(company, month, LocalDate.now()).stream())
                 .toList();
-        return CompanyRouteDirectory.from(registry, monitoredPaths, allActivePaths);
+        return CompanyRouteDirectory.from(registry, monitoredPaths, allActivePaths, backendRoot);
+    }
+
+    private static Path backendRootFor(Path config) {
+        Path normalized = config.toAbsolutePath().normalize();
+        Path parent = normalized.getParent();
+        return (parent == null ? Path.of(".").toAbsolutePath().normalize() : parent).resolve("backend");
     }
 }

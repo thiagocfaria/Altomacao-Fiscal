@@ -21,6 +21,7 @@ public final class BatchModeRunner {
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
     private final ProcessingLogger logger;
+    private final MissingCustomerRecoveryProcessor recoveryProcessor;
 
     public BatchModeRunner() {
         this(new RuntimeCompanyPaths(), new InputScanner(), new InvoiceProcessingPipeline(), new ProcessingLogger());
@@ -28,10 +29,16 @@ public final class BatchModeRunner {
 
     BatchModeRunner(RuntimeCompanyPaths companyPaths, InputScanner scanner, InvoiceProcessingPipeline pipeline,
                     ProcessingLogger logger) {
+        this(companyPaths, scanner, pipeline, logger, new MissingCustomerRecoveryProcessor(pipeline));
+    }
+
+    BatchModeRunner(RuntimeCompanyPaths companyPaths, InputScanner scanner, InvoiceProcessingPipeline pipeline,
+                    ProcessingLogger logger, MissingCustomerRecoveryProcessor recoveryProcessor) {
         this.companyPaths = companyPaths;
         this.scanner = scanner;
         this.pipeline = pipeline;
         this.logger = logger;
+        this.recoveryProcessor = recoveryProcessor;
     }
 
     public ProcessingSummary run(Path config, Optional<String> companyId, Optional<YearMonth> month,
@@ -46,31 +53,58 @@ public final class BatchModeRunner {
             summariesByPath.put(path, new ProcessingSummary());
         }
 
+        for (MissingCustomerRecoveryProcessor.RecoveryBatch batch : recoveryProcessor.recover(routes, homologation)) {
+            ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(batch.sourcePath(),
+                    ignored -> new ProcessingSummary());
+            for (FileProcessingResult result : batch.results()) {
+                recordOperationalLogs(batch.sourcePath(), result, routes);
+                record(pathSummary, result);
+                recordRoutedSummary(summariesByPath, batch.sourcePath(), result, routes);
+                record(overall, result);
+            }
+        }
+
         for (var candidate : candidates) {
             List<FileProcessingResult> results = pipeline.process(candidate, homologation, routes);
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(), ignored -> new ProcessingSummary());
             for (FileProcessingResult result : results) {
                 recordOperationalLogs(candidate.companyPath(), result, routes);
                 record(pathSummary, result);
+                recordRoutedSummary(summariesByPath, candidate.companyPath(), result, routes);
                 record(overall, result);
             }
         }
 
         for (Map.Entry<ResolvedCompanyPath, ProcessingSummary> entry : summariesByPath.entrySet()) {
-            logger.recordSummary(entry.getKey(), entry.getValue());
+            logger.recordSummary(routes, entry.getKey(), entry.getValue());
         }
         return overall;
     }
 
     private void recordOperationalLogs(ResolvedCompanyPath sourcePath, FileProcessingResult result,
                                        CompanyRouteDirectory routes) throws IOException {
-        logger.record(sourcePath, result);
+        logger.record(routes, sourcePath, result);
         if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
             return;
         }
         Optional<ResolvedCompanyPath> targetPath = routes.activePathForCompanyId(result.companyId());
         if (targetPath.isPresent() && !targetPath.orElseThrow().equals(sourcePath)) {
-            logger.record(targetPath.orElseThrow(), result);
+            logger.record(routes, targetPath.orElseThrow(), result);
+        }
+    }
+
+    private static void recordRoutedSummary(Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath,
+                                            ResolvedCompanyPath sourcePath,
+                                            FileProcessingResult result,
+                                            CompanyRouteDirectory routes) {
+        if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
+            return;
+        }
+        Optional<ResolvedCompanyPath> targetPath = routes.activePathForCompanyId(result.companyId());
+        if (targetPath.isPresent() && !targetPath.orElseThrow().equals(sourcePath)) {
+            ProcessingSummary targetSummary = summariesByPath.computeIfAbsent(targetPath.orElseThrow(),
+                    ignored -> new ProcessingSummary());
+            record(targetSummary, result);
         }
     }
 

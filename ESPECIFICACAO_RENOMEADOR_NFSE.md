@@ -30,7 +30,8 @@ Status em 06/05/2026:
 - [x] separacao fisica dos PDFs agrupados por pagina segura;
 - [x] modo `watch`;
 - [x] importacao de planilha Excel para `empresas.yaml`;
-- [x] preparacao de `PLANILHA_FISCAL_MODELO.xlsm` com visual PROTONS e 30 linhas extras para novos clientes;
+- [x] `watch` com recarga de cadastro e opcao `--planilha` para reimportar Excel salvo;
+- [x] preparacao de planilha fiscal `.xlsm` para preencher caminhos REST;
 - [x] scripts Windows basicos;
 - [x] homologacao operacional inicial em pasta real com pasta REST errada;
 - [x] retry do watcher para PDF ainda instavel;
@@ -50,7 +51,7 @@ O codigo fica no seu repositório. Depois ele sera levado para a maquina deles e
 - qual empresa esta sendo observada;
 - qual CNPJ do tomador deve aparecer nas notas daquela empresa;
 - qual pasta ou pastas mensais devem ser processadas;
-- para onde mandar `processados/`, `revisar/`, `originais/` e `logs/`.
+- para onde mandar `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/`, mantendo controles tecnicos no backend.
 
 O fluxo desejado e este:
 
@@ -70,9 +71,9 @@ O fluxo desejado e este:
 14. ele valida se o tomador bate com o CNPJ da empresa configurada;
 15. se nao bater, marca `CNPJ INCORRETO PARA REPOSITORIO`;
 16. ele detecta se a nota esta cancelada;
-17. ele detecta se existe retencao e, quando houver, acrescenta `##IR_RETIDO##`;
+17. ele detecta se existe retencao e, quando houver, envia para `RETIDO/` e acrescenta `##IR_RETIDO##`;
 18. ele renomeia e move para o destino correto;
-19. se houver qualquer duvida, manda para `revisar/` com motivo claro.
+19. se houver qualquer duvida tecnica, manda para backend/revisar com motivo claro.
 
 A V1 continua gradual: homologacao empresa por empresa, sem OCR, sem banco, sem tela e sem integracoes externas.
 
@@ -164,11 +165,7 @@ empresas:
     pastas:
       entrada: "entrada"
       processados: "processados"
-      revisar: "revisar"
-      originais: "originais"
-      logs: "logs"
-      canceladas: "revisar/canceladas"
-      ledger: "logs/processados.idx"
+      canceladas: "canceladas"
 ```
 
 Observacoes:
@@ -193,41 +190,46 @@ Para reduzir processamento inutil, a configuracao deve suportar estes modos:
 
 ```text
 modo watch ou batch e iniciado
+-> se houver `--planilha`, importa a planilha para `empresas.yaml`
 -> sistema carrega o cadastro de empresas
 -> sistema resolve empresas e meses ativos
 -> em watch: registra somente as pastas ativas no WatchService
 -> em batch: varre somente as pastas ativas uma vez
 -> ao encontrar PDF candidato, espera o arquivo estabilizar
--> consulta o ledger para evitar reprocessamento
--> preserva o original em originais/
+-> consulta o ledger tecnico no backend para evitar reprocessamento
+-> preserva o original no backend tecnico
 -> extrai o texto do PDF
 -> detecta se ha uma nota ou varias
 -> separa quando houver fronteira confiavel
 -> identifica o layout
--> se nao houver layout homologado, marca MODELO NAO SUPORTADO e envia para revisar
+-> se nao houver layout homologado, marca MODELO NAO SUPORTADO e envia para backend/revisar
 -> extrai campos principais
 -> detecta cancelamento
--> se cancelada, marca ##CANCELADA## e envia para revisar/canceladas
+-> se cancelada, marca ##CANCELADA## e envia para canceladas/
 -> valida o CNPJ do tomador
--> se divergir, marca CNPJ INCORRETO PARA REPOSITORIO e envia para revisar
+-> se divergir, procura o CNPJ no Excel; se houver REST ativa, roteia; senao envia para TOMADOR NAO ENCONTRADO/
+-> em varreduras futuras, se esse CNPJ ganhar REST ativa, recupera a nota de TOMADOR NAO ENCONTRADO/
+-> se a mesma nota ja estiver processada no destino, descarta a copia pendente para evitar duplicidade
 -> detecta retencao
--> verifica duplicidade fiscal Portal Nacional x ABRASF
+-> se retida, envia para RETIDO/
+-> verifica duplicidade fiscal Portal Nacional x ABRASF e duplicidade no mesmo layout
 -> monta o nome final
--> move para processados/ ou revisar/
--> registra tudo no log e no ledger
+-> move para processados/, RETIDO/, canceladas/ ou TOMADOR NAO ENCONTRADO/
+-> registra tudo no log e no ledger tecnico em backend/
 ```
 
 ## 6. Premissas de negocio para a V1
 
 - o codigo fica fora da estrutura de documentos das empresas;
 - o processamento acontece diretamente nas pastas da empresa configurada;
-- os caminhos de entrada, processados, revisar, originais, logs, canceladas e ledger sao externos e configuraveis;
+- a REST do cliente deve ficar limitada a entrada, `processados/`, `RETIDO/`, `canceladas/` e `TOMADOR NAO ENCONTRADO/` quando necessario;
+- logs, ledger, originais tecnicos, indice de duplicidade e revisoes tecnicas ficam no `backend/` do sistema;
 - a configuracao deve suportar pasta mensal para evitar varredura desnecessaria;
 - a V1 deve suportar `watch` e `batch`;
 - o cadastro de empresas ja nasce preparado para varias empresas;
 - a homologacao e a ativacao em producao devem acontecer empresa por empresa;
 - a automacao so decide sozinha quando o layout e homologado e os campos obrigatorios forem encontrados;
-- qualquer incerteza deve ir para `revisar/`, nao para `processados/`;
+- qualquer incerteza tecnica deve ir para backend/revisar, nao para `processados/`;
 - o arquivo original nunca pode ser perdido ou sobrescrito;
 - a primeira versao sera homologada com um conjunto controlado de PDFs reais;
 - os primeiros layouts foco do piloto serao os PDFs da pasta `NF MODELO ABRASP E PORTAL NACIONAL/`, embora o nome tecnico correto do padrao seja ABRASF;
@@ -299,7 +301,7 @@ Regras:
 - numero da nota deve preservar o numero real, sem completar com zeros a esquerda;
 - limitar o nome operacional final a 150 caracteres para reduzir risco em caminhos Windows profundos;
 - se houver colisao, acrescentar sufixo incremental como `_01`, `_02`;
-- `##IR_RETIDO##` so aparece quando houver evidencia objetiva de retencao;
+- `##IR_RETIDO##` so aparece quando houver evidencia objetiva de retencao, e a nota vai para `RETIDO/`;
 - `##CANCELADA##` tem prioridade sobre nome normal, e nota cancelada nao vai para `processados/`.
 
 ### 8.1 Prioridade de status
@@ -320,7 +322,7 @@ A V1 deve marcar `##IR_RETIDO##` quando houver evidencia objetiva de retencao:
 - algum campo de retencao federal positivo: PIS, COFINS, INSS, IRRF, CSLL ou outras retencoes;
 - valor liquido menor que valor do servico, desde que a diferenca nao seja explicada claramente por desconto ou deducao registrada no proprio documento.
 
-Se a regra encontrar valores conflitantes, o arquivo deve ir para `revisar/`. O sistema nao deve marcar retencao por chute.
+Se a regra encontrar valores conflitantes, o arquivo deve ir para backend/revisar. O sistema nao deve marcar retencao por chute.
 
 ### 8.3 Layouts homologados na V1
 
@@ -370,7 +372,7 @@ Se o texto extraido nao casar com nenhum dos dois conjuntos acima, o arquivo dev
 Se o PDF nao tiver texto selecionavel suficiente para classificacao segura:
 
 - nao tentar OCR na V1;
-- enviar para `revisar/`;
+- enviar para backend/revisar;
 - registrar motivo claro no log.
 
 ### 8.4 Nota cancelada
@@ -385,7 +387,7 @@ Sinais de cancelamento a observar:
 Regra:
 
 - se qualquer marcador confiavel de cancelamento for encontrado, a nota recebe `##CANCELADA##`;
-- nota cancelada vai para `revisar/canceladas/`, ou para `revisar/` se a subpasta dedicada nao existir;
+- nota cancelada vai para `canceladas/`;
 - nota cancelada nunca deve ser tratada como nota normal de `processados/`.
 
 ### 8.5 Arquitetura interna recomendada
@@ -554,7 +556,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - PDF com uma unica nota gera um unico resultado;
 - PDF agrupado por pagina gera um resultado por pagina/nota;
 - nenhuma nota e descartada silenciosamente;
-- PDF agrupado com corte ambiguo vai inteiro para `revisar/`;
+- PDF agrupado com corte ambiguo vai inteiro para backend/revisar;
 - PDFs separados abrem e contem apenas a nota esperada.
 
 **Testes obrigatorios**
@@ -582,7 +584,8 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - cadastro com uma ou varias empresas carrega corretamente;
 - empresa desabilitada nao e processada;
 - estrategias `atual`, `informado`, `lista` e `direto` resolvem as pastas corretas;
-- caminhos de entrada, processados, revisar, originais, logs, canceladas e ledger sao configuraveis;
+- caminhos operacionais de entrada, processados e canceladas sao configuraveis;
+- revisar, originais, logs, ledger, indice de duplicidade e area de separacao tecnica ficam derivados no backend do sistema;
 - configuracao invalida falha com mensagem clara.
 
 **Testes obrigatorios**
@@ -609,7 +612,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Criterios de aceite**
 
 - arquivo ainda em copia nao e processado;
-- original e copiado para `originais/` antes de qualquer movimentacao;
+- original e copiado para `backend/empresas/<empresa_id>/originais/` antes de qualquer movimentacao;
 - ledger registra `companyId`, caminho original, tamanho, data, hash, status, destino e data de processamento;
 - reexecutar o lote nao duplica arquivo nem reprocessa item ja registrado;
 - falha ao preservar original interrompe aquele arquivo e registra erro.
@@ -642,10 +645,12 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 - `batch` varre apenas as pastas ativas;
 - pasta vazia encerra sem erro;
 - `batch` aceita uma pasta existente configurada como entrada, sem exigir que o sistema crie uma estrutura nova antes;
-- PDF valido termina em `processados/`;
-- PDF cancelado termina em `revisar/canceladas/`;
-- PDF com CNPJ do tomador errado, modelo nao suportado, sem texto ou dados ausentes termina em `revisar/`;
-- cada arquivo tem registro de log e ledger;
+- PDF valido sem retencao termina em `processados/`;
+- PDF valido com retencao termina em `RETIDO/`;
+- PDF cancelado termina em `canceladas/`;
+- PDF em pasta errada sem REST ativa termina em `TOMADOR NAO ENCONTRADO/`;
+- PDF com modelo nao suportado, sem texto ou dados ausentes termina em `backend/empresas/<empresa_id>/revisar/`;
+- cada arquivo tem registro de log e ledger no backend;
 - nao ha sobrescrita silenciosa;
 - em modo de homologacao com preservacao de entrada, os PDFs originais da pasta de entrada continuam no lugar.
 
@@ -675,7 +680,10 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Criterios de aceite**
 
 - `watch` registra apenas pastas ativas;
+- `watch` recarrega o cadastro quando o `empresas.yaml` muda;
+- quando iniciado com `--planilha`, o `watch` reimporta o Excel quando a planilha e salva e registra os novos caminhos;
 - novo PDF copiado para entrada e processado apos estabilidade;
+- pendencias de `TOMADOR NAO ENCONTRADO/` sao reavaliadas na varredura inicial e apos reload do cadastro;
 - reiniciar `watch` respeita ledger existente;
 - falha de um arquivo nao derruba o processo inteiro;
 - logs permitem entender cada evento observado.
@@ -732,8 +740,9 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Criterios de aceite**
 
 - 100% dos PDFs homologados do lote piloto terminam no destino esperado;
-- 100% dos casos fora do padrao ou da empresa errada vao para revisao;
-- 100% das canceladas vao para `revisar/canceladas/`;
+- 100% dos casos fora do padrao vao para backend/revisar;
+- 100% das notas em pasta errada sem REST ativa vao para `TOMADOR NAO ENCONTRADO/`;
+- 100% das canceladas vao para `canceladas/`;
 - 0 perda de original;
 - 0 sobrescrita indevida;
 - 0 reprocessamento indevido;
@@ -768,8 +777,8 @@ A V1 sera considerada pronta quando todos os itens abaixo forem verdadeiros:
 - o sistema marca `##CANCELADA##` quando a nota estiver cancelada;
 - o sistema marca `##IR_RETIDO##` quando houver retencao confirmada;
 - o sistema gera nome padrao consistente;
-- o sistema decide corretamente entre `processados/`, `revisar/` e `revisar/canceladas/`;
-- o sistema gera log compreensivel por arquivo;
+- o sistema decide corretamente entre `processados/`, `RETIDO/`, `canceladas/`, `TOMADOR NAO ENCONTRADO/` e backend/revisar;
+- o sistema gera log compreensivel por arquivo no backend;
 - os testes do lote piloto passam integralmente;
 - o `jar` final roda fora da pasta do projeto com configuracao externa.
 
@@ -822,22 +831,24 @@ Para cada PDF do lote piloto, registrar e validar:
 ### 11.3 Checklist manual de homologacao
 
 - o programa rodou fora do repositorio de desenvolvimento;
-- o PDF original foi preservado na pasta configurada de `originais/`;
+- o PDF original foi preservado no backend tecnico;
 - a quantidade de notas geradas esta correta;
 - os dados principais batem com o conteudo visual da nota;
 - o CNPJ do tomador bate com o CNPJ esperado da empresa nos casos corretos;
 - notas na pasta errada foram conferidas pelo CNPJ do tomador, nunca pelo CNPJ do prestador;
 - quando o CNPJ do tomador pertence a outro cliente com REST ativo, a nota foi enviada para as subpastas da REST correta;
-- quando o CNPJ do tomador pertence a outro cliente sem REST ativo, a nota ficou em `revisar/` com `NF_PASTA_INCORRETA_`;
+- quando nao ha REST ativa para o CNPJ do tomador, a nota ficou em `TOMADOR NAO ENCONTRADO/` com nome contendo tomador, CNPJ e valor;
+- quando o caminho REST desse tomador foi cadastrado depois, a nota saiu de `TOMADOR NAO ENCONTRADO/`, recebeu nome operacional normal e foi para a REST correta;
+- quando o mesmo PDF ja existia no destino pelo ledger/hash, a copia em `TOMADOR NAO ENCONTRADO/` foi apagada sem gerar segunda copia operacional;
 - layouts nao suportados foram desviados com `MODELO NAO SUPORTADO`;
 - PDFs sem texto foram desviados para revisao sem OCR;
 - notas canceladas foram desviadas com `##CANCELADA##`;
-- notas com retencao receberam `##IR_RETIDO##`;
+- notas com retencao foram para `RETIDO/` e receberam `##IR_RETIDO##`;
 - notas sem retencao nao receberam `##IR_RETIDO##`;
 - o nome final esta no padrao;
 - o destino final do arquivo esta correto;
-- o ledger registrou o processamento;
-- o log explica claramente o resultado;
+- o ledger registrou o processamento no backend;
+- o log no backend explica claramente o resultado;
 - reexecutar o lote nao duplicou arquivos.
 
 ### 11.4 Regra para evolucao futura
@@ -848,17 +859,17 @@ Qualquer nova prefeitura, nova empresa ou nova regra de negocio so entra em prod
 - cadastrar o novo caminho e o CNPJ esperado da empresa;
 - criar regra de identificacao do novo layout;
 - criar ou ajustar parser especifico quando necessario;
-- validar novamente o fluxo de `processados/`, `revisar/` e `canceladas/`;
+- validar novamente o fluxo de `processados/`, `RETIDO/`, `canceladas/`, `TOMADOR NAO ENCONTRADO/` e backend/revisar;
 - rodar `mvn test` e a homologacao funcional do lote afetado.
 
 ## 12. Riscos conhecidos e tratamento
 
-- **PDF sem texto selecionavel suficiente:** nao entra na automacao da V1; vai para `revisar/`.
-- **Layout novo nao homologado:** nao deve ser processado automaticamente; vai para `revisar/` com `MODELO NAO SUPORTADO`.
-- **CNPJ do tomador ausente ou ilegivel:** nao validar automaticamente; vai para `revisar/`.
-- **Nota na pasta da empresa errada:** deve usar somente o CNPJ do tomador para decidir o destino. Se o tomador tiver REST ativo em outro cadastro, processa pelo cadastro correto; se o tomador for conhecido mas sem REST ativo, vai para `revisar/` com `NF_PASTA_INCORRETA_`; se o tomador for desconhecido, vai para `revisar/` como CNPJ incorreto.
-- **Nota cancelada:** deve ir para `revisar/canceladas/` com `##CANCELADA##`.
-- **Valores de retencao conflitantes:** deve ir para `revisar/`, sem marcar retencao por chute.
+- **PDF sem texto selecionavel suficiente:** nao entra na automacao da V1; vai para backend/revisar.
+- **Layout novo nao homologado:** nao deve ser processado automaticamente; vai para backend/revisar com `MODELO NAO SUPORTADO`.
+- **CNPJ do tomador ausente ou ilegivel:** nao validar automaticamente; vai para backend/revisar.
+- **Nota na pasta da empresa errada:** deve usar somente o CNPJ do tomador para decidir o destino. Se o tomador tiver REST ativo em outro cadastro, processa pelo cadastro correto; se nao houver REST ativa, fica na pasta atual em `TOMADOR NAO ENCONTRADO/`. Quando esse CNPJ ganhar REST ativa em reload futuro do cadastro, a pendencia deve ser recuperada automaticamente e a pasta `TOMADOR NAO ENCONTRADO/` deve ser apagada se ficar vazia.
+- **Nota cancelada:** deve ir para `canceladas/` com `##CANCELADA##`.
+- **Valores de retencao conflitantes:** deve ir para backend/revisar, sem marcar retencao por chute.
 - **Arquivo travado ou ainda em copia:** aguardar estabilidade, registrar no log e tentar novamente quando aplicavel.
 - **Falha no WatchService ou reinicio do programa:** o `batch` continua sendo rede de seguranca, executado quando o `watch` nao estiver ativo com o mesmo `empresas.yaml`.
 - **Execucao simultanea com o mesmo cadastro:** `batch` e `watch` usam trava por `empresas.yaml`; a segunda instancia deve falhar em vez de competir pelos mesmos PDFs.

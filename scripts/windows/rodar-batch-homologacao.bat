@@ -11,8 +11,12 @@ if not exist "%JAR%" (
 )
 
 if "%~1"=="" (
-  echo Uso: rodar-batch-homologacao.bat C:\caminho\empresas.yaml
+  echo Uso: rodar-batch-homologacao.bat C:\caminho\empresas.yaml [C:\caminho\PLANILHA_FISCAL.xlsm]
   exit /b 1
 )
 
-java -jar "%JAR%" batch --config "%~1" --homologacao
+if "%~2"=="" (
+  java -jar "%JAR%" batch --config "%~1" --homologacao
+) else (
+  java -jar "%JAR%" batch --config "%~1" --homologacao --planilha "%~2"
+)

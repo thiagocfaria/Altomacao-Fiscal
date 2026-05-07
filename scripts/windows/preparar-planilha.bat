@@ -11,12 +11,12 @@ if not exist "%JAR%" (
 )
 
 if "%~1"=="" (
-  echo Uso: preparar-planilha.bat C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm C:\caminho\PLANILHA_FISCAL_MODELO.xlsm
+  echo Uso: preparar-planilha.bat C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm C:\caminho\PLANILHA_FISCAL.xlsm
   exit /b 1
 )
 
 if "%~2"=="" (
-  echo Uso: preparar-planilha.bat C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm C:\caminho\PLANILHA_FISCAL_MODELO.xlsm
+  echo Uso: preparar-planilha.bat C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm C:\caminho\PLANILHA_FISCAL.xlsm
   exit /b 1
 )
 

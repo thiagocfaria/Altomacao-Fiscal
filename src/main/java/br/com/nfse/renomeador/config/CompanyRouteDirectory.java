@@ -2,6 +2,7 @@ package br.com.nfse.renomeador.config;
 
 import br.com.nfse.renomeador.text.TextNormalizer;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,12 +13,20 @@ import java.util.Set;
 public record CompanyRouteDirectory(
         List<ResolvedCompanyPath> monitoredPaths,
         List<ResolvedCompanyPath> activePaths,
-        Set<String> knownCustomerTaxIds
+        Set<String> knownCustomerTaxIds,
+        Path backendRoot
 ) {
+    public CompanyRouteDirectory(List<ResolvedCompanyPath> monitoredPaths,
+                                 List<ResolvedCompanyPath> activePaths,
+                                 Set<String> knownCustomerTaxIds) {
+        this(monitoredPaths, activePaths, knownCustomerTaxIds, defaultBackendRoot(monitoredPaths));
+    }
+
     public CompanyRouteDirectory {
         monitoredPaths = List.copyOf(monitoredPaths);
         activePaths = List.copyOf(activePaths);
         knownCustomerTaxIds = Set.copyOf(knownCustomerTaxIds);
+        backendRoot = backendRoot == null ? defaultBackendRoot(monitoredPaths) : backendRoot;
     }
 
     public static CompanyRouteDirectory single(ResolvedCompanyPath companyPath) {
@@ -27,6 +36,11 @@ public record CompanyRouteDirectory(
 
     public static CompanyRouteDirectory from(CompanyRegistry registry, List<ResolvedCompanyPath> monitoredPaths,
                                              List<ResolvedCompanyPath> activePaths) {
+        return from(registry, monitoredPaths, activePaths, defaultBackendRoot(monitoredPaths));
+    }
+
+    public static CompanyRouteDirectory from(CompanyRegistry registry, List<ResolvedCompanyPath> monitoredPaths,
+                                             List<ResolvedCompanyPath> activePaths, Path backendRoot) {
         Set<String> known = new HashSet<>();
         for (CompanyConfig company : registry.companies()) {
             if (company.sourceOnly()) {
@@ -37,7 +51,7 @@ public record CompanyRouteDirectory(
                 known.add(taxId);
             }
         }
-        return new CompanyRouteDirectory(monitoredPaths, activePaths, known);
+        return new CompanyRouteDirectory(monitoredPaths, activePaths, known, backendRoot);
     }
 
     public Optional<ResolvedCompanyPath> activePathForCustomerTaxId(String taxId) {
@@ -69,5 +83,17 @@ public record CompanyRouteDirectory(
 
     public boolean hasKnownCustomerTaxId(String taxId) {
         return knownCustomerTaxIds.contains(TextNormalizer.digitsOnly(taxId));
+    }
+
+    private static Path defaultBackendRoot(List<ResolvedCompanyPath> monitoredPaths) {
+        if (monitoredPaths == null || monitoredPaths.isEmpty()) {
+            return Path.of("backend").toAbsolutePath().normalize();
+        }
+        Path root = monitoredPaths.get(0).root().toAbsolutePath().normalize();
+        if (monitoredPaths.size() == 1) {
+            return root.resolve("backend").normalize();
+        }
+        Path parent = root.getParent();
+        return (parent == null ? root : parent).resolve("backend").normalize();
     }
 }

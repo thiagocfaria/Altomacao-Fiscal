@@ -14,8 +14,10 @@ final class ParserSupport {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{4}");
     private static final Pattern MONEY = Pattern.compile("R\\$\\s*([0-9.]+,[0-9]{2})");
     private static final Pattern POSITIVE_RETENTION_VALUE = Pattern.compile(
-            "(ISSQN RETIDO|VL\\. ISSQN RETIDO|TOTAL DAS RETENCOES FEDERAIS|PIS|COFINS|INSS|IRRF|CSLL|OUTRAS RETENCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:,00)?)([0-9.]+,[0-9]{2})"
+            "(ISSQN RETIDO|VL\\. ISSQN RETIDO|TOTAL DAS RETENCOES FEDERAIS|PIS|COFINS|INSS|IRRF|CSLL|OUTRAS RETENCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:\\.0+)*(?:,0{2,4})\\b)([0-9.]+,[0-9]{2,4})"
     );
+    private static final Pattern MUNICIPAL_TAX_WITHHELD_YES = Pattern.compile("IMPOSTO RETIDO PELO TOMADOR\\s*:\\s*SIM");
+    private static final Pattern MUNICIPAL_TAX_WITHHELD_NO = Pattern.compile("IMPOSTO RETIDO PELO TOMADOR\\s*:\\s*NAO");
 
     private ParserSupport() {
     }
@@ -138,8 +140,10 @@ final class ParserSupport {
 
     static RetentionAnalysis retentionAnalysis(String text, BigDecimal serviceValue, BigDecimal netValue) {
         String normalized = TextNormalizer.normalize(text);
-        boolean notRetained = normalized.contains("NAO RETIDO");
+        boolean notRetained = normalized.contains("NAO RETIDO")
+                || MUNICIPAL_TAX_WITHHELD_NO.matcher(normalized).find();
         boolean explicitPositive = normalized.matches("(?s).*ISSQN RETIDO\\s+SIM.*")
+                || MUNICIPAL_TAX_WITHHELD_YES.matcher(normalized).find()
                 || POSITIVE_RETENTION_VALUE.matcher(normalized).find();
         boolean netLowerThanService = serviceValue != null && netValue != null && netValue.compareTo(serviceValue) < 0;
 

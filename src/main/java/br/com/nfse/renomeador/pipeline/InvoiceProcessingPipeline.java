@@ -75,7 +75,8 @@ public final class InvoiceProcessingPipeline {
         ResolvedCompanyPath companyPath = candidate.companyPath();
         Path source = candidate.source();
         String companyId = companyPath.company().id();
-        ProcessingLedger ledger = new ProcessingLedger(PathsForCompany.ledger(companyPath));
+        ProcessingLedger ledger = new ProcessingLedger(TechnicalPaths.ledger(routes, companyPath));
+        ProcessingLedger legacyLedger = new ProcessingLedger(PathsForCompany.ledger(companyPath));
         long size = -1L;
         Instant lastModified = Instant.EPOCH;
         String sha256 = "";
@@ -89,12 +90,13 @@ public final class InvoiceProcessingPipeline {
             size = Files.size(source);
             lastModified = Files.getLastModifiedTime(source).toInstant();
             sha256 = hashService.sha256(source);
-            if (ledger.hasProcessed(companyId, source, size, lastModified, sha256)) {
-                return List.of(FileProcessingResult.skipped(companyId, source, "Arquivo ja registrado no ledger",
-                        elapsedMillis(startedAt)));
+            if (ledger.hasProcessed(companyId, source, size, lastModified, sha256)
+                    || legacyLedger.hasProcessed(companyId, source, size, lastModified, sha256)) {
+                return List.of(FileProcessingResult.skipped(companyId, source,
+                        FileProcessingResult.REASON_ALREADY_REGISTERED, elapsedMillis(startedAt)));
             }
 
-            archiveService.archive(source, PathsForCompany.originals(companyPath));
+            archiveService.archive(source, TechnicalPaths.originals(routes, companyPath));
             List<FileProcessingResult> results = processWorkFiles(source, companyPath, preserveInput, routes);
             ledger.record(new LedgerEntry(
                     companyId,
@@ -110,7 +112,7 @@ public final class InvoiceProcessingPipeline {
             cleanupSourceAfterSplit(source, preserveInput, results);
             return withDuration(results, startedAt);
         } catch (Exception exception) {
-            FileProcessingResult result = handleTechnicalError(companyPath, source, preserveInput, exception);
+            FileProcessingResult result = handleTechnicalError(companyPath, source, preserveInput, routes, exception);
             result = result.withDurationMillis(elapsedMillis(startedAt));
             recordTechnicalFailureIfPossible(ledger, companyId, source, size, lastModified, sha256, result);
             return List.of(result);
@@ -119,7 +121,7 @@ public final class InvoiceProcessingPipeline {
 
     private List<FileProcessingResult> processWorkFiles(Path source, ResolvedCompanyPath companyPath,
                                                         boolean preserveInput, CompanyRouteDirectory routes) throws IOException {
-        List<Path> workFiles = workFilesFor(source, companyPath);
+        List<Path> workFiles = workFilesFor(source, companyPath, routes);
         boolean split = workFiles.size() > 1 || !workFiles.get(0).equals(source);
         List<FileProcessingResult> results = new ArrayList<>();
         for (Path workFile : workFiles) {
@@ -131,14 +133,15 @@ public final class InvoiceProcessingPipeline {
         return List.copyOf(results);
     }
 
-    private List<Path> workFilesFor(Path source, ResolvedCompanyPath companyPath) throws IOException {
+    private List<Path> workFilesFor(Path source, ResolvedCompanyPath companyPath,
+                                    CompanyRouteDirectory routes) throws IOException {
         if (textExtractor.extractPages(source).size() <= 1) {
             return List.of(source);
         }
         if (splitter.splitSupportedPages(source).size() <= 1) {
             return List.of(source);
         }
-        Path splitDirectory = nextRunDirectory(PathsForCompany.logs(companyPath).resolve("split-work"));
+        Path splitDirectory = nextRunDirectory(TechnicalPaths.splitWork(routes, companyPath));
         return splitter.splitSupportedPagesToFiles(source, splitDirectory);
     }
 
@@ -149,22 +152,23 @@ public final class InvoiceProcessingPipeline {
         InvoiceData invoice;
         if (extraction.invoice().isPresent()) {
             invoice = extraction.invoice().orElseThrow();
-            if (isWrongFolder(invoice, companyPath)) {
+            if (shouldResolveByCustomerTaxId(invoice, companyPath)) {
                 var target = routes.activePathForCustomerTaxId(invoice.customerTaxId());
                 if (target.isPresent() && !target.orElseThrow().equals(companyPath)) {
                     return processSingle(workFile, originalSource, target.orElseThrow(), preserveInput, routes);
                 }
-                if (routes.hasKnownCustomerTaxId(invoice.customerTaxId())) {
-                    String fileName = wrongFolderFileName(invoice, companyPath);
-                    DestinationResult destination = destinationService.sendToReview(workFile, companyPath, fileName, preserveInput);
-                    return FileProcessingResult.processed(companyPath.company().id(), originalSource,
-                            ProcessingStatus.WRONG_COMPANY, "Nota fiscal encontrada na pasta incorreta",
-                            destination.destination());
-                }
+                String fileName = fileNameBuilder.buildMissingCustomerPath(invoice);
+                DestinationResult destination = destinationService.sendToMissingCustomer(workFile, companyPath,
+                        fileName, preserveInput);
+                return FileProcessingResult.processed(companyPath.company().id(), originalSource,
+                        ProcessingStatus.WRONG_COMPANY,
+                        "Tomador nao encontrado com caminho REST ativo no Excel",
+                        destination.destination());
             }
             decision = new ProcessingDecisionService(companyPath.company().customerTaxId()).decide(invoice);
             if (decision.status() == ProcessingStatus.OK) {
-                DuplicateCheck duplicate = handleFiscalDuplicate(workFile, originalSource, companyPath, invoice, preserveInput);
+                DuplicateCheck duplicate = handleFiscalDuplicate(workFile, originalSource, companyPath, invoice,
+                        preserveInput, routes);
                 if (duplicate.result() != null) {
                     return duplicate.result();
                 }
@@ -179,36 +183,51 @@ public final class InvoiceProcessingPipeline {
         }
 
         String finalName = fileNameBuilder.build(invoice, decision.status());
-        DestinationResult destination = destinationService.send(workFile, companyPath, decision.status(), finalName, preserveInput);
+        DestinationResult destination = destinationService.send(workFile, companyPath, decision.status(), finalName,
+                preserveInput, invoice.retained(), routes);
         if (decision.status() == ProcessingStatus.OK) {
-            recordFiscalDuplicateIndex(companyPath, invoice, destination.destination());
+            recordFiscalDuplicateIndex(companyPath, invoice, destination.destination(), routes);
         }
         return FileProcessingResult.processed(companyPath.company().id(), originalSource, decision.status(),
                 decision.reason(), destination.destination());
     }
 
     private DuplicateCheck handleFiscalDuplicate(Path workFile, Path originalSource, ResolvedCompanyPath companyPath,
-                                                 InvoiceData invoice, boolean preserveInput) throws IOException {
+                                                 InvoiceData invoice, boolean preserveInput,
+                                                 CompanyRouteDirectory routes) throws IOException {
         String fiscalKey = fiscalDuplicateKey(invoice);
         if (fiscalKey.isBlank()) {
             return DuplicateCheck.none();
         }
-        DuplicateInvoiceIndex index = new DuplicateInvoiceIndex(PathsForCompany.logs(companyPath).resolve("duplicadas.idx"));
+        DuplicateInvoiceIndex index = new DuplicateInvoiceIndex(TechnicalPaths.duplicateIndex(routes, companyPath));
+        DuplicateInvoiceIndex legacyIndex = new DuplicateInvoiceIndex(PathsForCompany.logs(companyPath).resolve("duplicadas.idx"));
         String companyId = companyPath.company().id();
+        var portal = findDuplicate(index, legacyIndex, companyId, fiscalKey, LayoutType.PORTAL_NACIONAL);
+        var abrasf = findDuplicate(index, legacyIndex, companyId, fiscalKey, LayoutType.ABRASF_ISSNET);
+        if (invoice.layout() == LayoutType.PORTAL_NACIONAL && portal.isPresent()) {
+            discardWorkFile(workFile, preserveInput);
+            return new DuplicateCheck(FileProcessingResult.processed(companyId, originalSource,
+                    ProcessingStatus.DUPLICATE,
+                    "Portal Nacional duplicada descartada; copia operacional equivalente ja existe",
+                    portal.orElseThrow().destination()), null);
+        }
         if (invoice.layout() == LayoutType.ABRASF_ISSNET) {
-            var portal = index.find(companyId, fiscalKey, LayoutType.PORTAL_NACIONAL);
             if (portal.isPresent()) {
-                if (!preserveInput) {
-                    Files.deleteIfExists(workFile);
-                }
+                discardWorkFile(workFile, preserveInput);
                 return new DuplicateCheck(FileProcessingResult.processed(companyId, originalSource,
                         ProcessingStatus.DUPLICATE,
                         "ABRASF duplicada descartada; Portal Nacional equivalente ja existe",
                         portal.orElseThrow().destination()), null);
             }
+            if (abrasf.isPresent()) {
+                discardWorkFile(workFile, preserveInput);
+                return new DuplicateCheck(FileProcessingResult.processed(companyId, originalSource,
+                        ProcessingStatus.DUPLICATE,
+                        "ABRASF duplicada descartada; copia operacional equivalente ja existe",
+                        abrasf.orElseThrow().destination()), null);
+            }
         }
         if (invoice.layout() == LayoutType.PORTAL_NACIONAL) {
-            var abrasf = index.find(companyId, fiscalKey, LayoutType.ABRASF_ISSNET);
             if (abrasf.isPresent()) {
                 Path destination = abrasf.orElseThrow().destination();
                 if (canDeleteOperationalDuplicate(companyPath, destination)) {
@@ -222,22 +241,44 @@ public final class InvoiceProcessingPipeline {
         return DuplicateCheck.none();
     }
 
+    private static java.util.Optional<DuplicateInvoiceIndex.Entry> findDuplicate(DuplicateInvoiceIndex index,
+                                                                                DuplicateInvoiceIndex legacyIndex,
+                                                                                String companyId,
+                                                                                String fiscalKey,
+                                                                                LayoutType layout) throws IOException {
+        var current = index.find(companyId, fiscalKey, layout);
+        return current.isPresent() ? current : legacyIndex.find(companyId, fiscalKey, layout);
+    }
+
+    private static void discardWorkFile(Path workFile, boolean preserveInput) throws IOException {
+        if (!preserveInput) {
+            Files.deleteIfExists(workFile);
+        }
+    }
+
     private static boolean canDeleteOperationalDuplicate(ResolvedCompanyPath companyPath, Path destination) {
         if (destination == null || destination.toString().isBlank()) {
             return false;
         }
-        Path root = companyPath.root().toAbsolutePath().normalize();
         Path normalizedDestination = destination.toAbsolutePath().normalize();
-        return normalizedDestination.startsWith(root) && Files.isRegularFile(normalizedDestination);
+        return Files.isRegularFile(normalizedDestination)
+                && (isInside(PathsForCompany.processed(companyPath), normalizedDestination)
+                || isInside(companyPath.root().resolve(DestinationService.RETAINED_FOLDER), normalizedDestination)
+                || isInside(PathsForCompany.cancelled(companyPath), normalizedDestination)
+                || isInside(companyPath.root().resolve(DestinationService.MISSING_CUSTOMER_FOLDER), normalizedDestination));
+    }
+
+    private static boolean isInside(Path directory, Path file) {
+        return file.startsWith(directory.toAbsolutePath().normalize());
     }
 
     private static void recordFiscalDuplicateIndex(ResolvedCompanyPath companyPath, InvoiceData invoice,
-                                                   Path destination) throws IOException {
+                                                   Path destination, CompanyRouteDirectory routes) throws IOException {
         String fiscalKey = fiscalDuplicateKey(invoice);
         if (fiscalKey.isBlank()) {
             return;
         }
-        new DuplicateInvoiceIndex(PathsForCompany.logs(companyPath).resolve("duplicadas.idx"))
+        new DuplicateInvoiceIndex(TechnicalPaths.duplicateIndex(routes, companyPath))
                 .record(companyPath.company().id(), fiscalKey, invoice.layout(), destination);
     }
 
@@ -247,11 +288,8 @@ public final class InvoiceProcessingPipeline {
         return !invoiceTaxId.isBlank() && !expectedTaxId.isBlank() && !invoiceTaxId.equals(expectedTaxId);
     }
 
-    private static String wrongFolderFileName(InvoiceData invoice, ResolvedCompanyPath companyPath) {
-        return "NF_PASTA_INCORRETA_CNPJ_NF_%s_CNPJ_PASTA_%s.pdf".formatted(
-                TextNormalizer.digitsOnly(invoice.customerTaxId()),
-                TextNormalizer.digitsOnly(companyPath.company().customerTaxId())
-        );
+    private static boolean shouldResolveByCustomerTaxId(InvoiceData invoice, ResolvedCompanyPath companyPath) {
+        return companyPath.company().sourceOnly() || isWrongFolder(invoice, companyPath);
     }
 
     private static String fiscalDuplicateKey(InvoiceData invoice) {
@@ -296,9 +334,10 @@ public final class InvoiceProcessingPipeline {
     }
 
     private FileProcessingResult handleTechnicalError(ResolvedCompanyPath companyPath, Path source,
-                                                      boolean preserveInput, Exception exception) {
+                                                      boolean preserveInput, CompanyRouteDirectory routes,
+                                                      Exception exception) {
         try {
-            DestinationResult destination = destinationService.sendTechnicalError(source, companyPath, preserveInput);
+            DestinationResult destination = destinationService.sendTechnicalError(source, companyPath, preserveInput, routes);
             return FileProcessingResult.failed(companyPath.company().id(), source,
                     "Erro tecnico no processamento", destination.destination(), exception);
         } catch (Exception moveException) {
@@ -395,7 +434,7 @@ public final class InvoiceProcessingPipeline {
             if (targetPath.isEmpty() || targetPath.orElseThrow().equals(sourcePath)) {
                 continue;
             }
-            new ProcessingLedger(PathsForCompany.ledger(targetPath.orElseThrow()))
+            new ProcessingLedger(TechnicalPaths.ledger(routes, targetPath.orElseThrow()))
                     .record(new LedgerEntry(
                             result.companyId(),
                             source,

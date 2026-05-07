@@ -32,6 +32,16 @@ public final class FileNameBuilder {
         };
     }
 
+    public String buildMissingCustomerPath(InvoiceData invoice) {
+        String number = normalizeNumber(invoice.number());
+        String customer = sanitize(invoice.customerName().isBlank() ? "TOMADOR_DESCONHECIDO" : invoice.customerName());
+        String customerTaxId = digits(invoice.customerTaxId());
+        String taxId = customerTaxId.isBlank() ? "CNPJ_DESCONHECIDO" : customerTaxId;
+        String value = normalizeValue(invoice.serviceValue());
+        String suffix = "_CNPJ_" + taxId + "_VALOR_" + value + ".pdf";
+        return withProvider("NFSE_" + number + "_", customer, suffix);
+    }
+
     private static String withProvider(String prefix, String provider, String suffix) {
         int maxProviderLength = MAX_FILE_NAME_LENGTH - prefix.length() - suffix.length();
         String safeProvider = provider;
@@ -77,5 +87,9 @@ public final class FileNameBuilder {
         return value.replaceAll("[\\\\/:*?\"<>|]", "_")
                 .replaceAll("\\s+", "_")
                 .strip();
+    }
+
+    private static String digits(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
     }
 }

@@ -2,6 +2,7 @@
 .worktrees/
 .claude/settings.local.json
 target/
+backend/
 *.class
 *.log
 *.tmp

@@ -77,7 +77,7 @@
     <path d="M0 8 L1240 8 Q1270 8 1290 30 L1360 130 L0 130 Z" fill="#ffffff" stroke="#17202a" stroke-width="5" filter="url(#shadow)"/>
     <text class="doc-label" x="36" y="36">DA - DOCUMENTO DE APOIO</text>
     <text class="title" x="34" y="72">Renomeador de NFS-e: guia operacional</text>
-    <text class="subtitle" x="36" y="106">Da planilha REST (pasta do cliente) ate processados, revisar, originais, logs e ledger (historico)</text>
+    <text class="subtitle" x="36" y="106">Da planilha REST ate destinos operacionais e backend tecnico do sistema</text>
     <g transform="translate(1430 4)">
       <circle cx="55" cy="55" r="52" fill="url(#purple)" stroke="#17202a" stroke-width="4"/>
       <path d="M35 34 h42 a12 12 0 0 1 12 12 v34 a12 12 0 0 1 -12 12 H35 a12 12 0 0 1 -12 -12 V46 a12 12 0 0 1 12 -12Z" fill="#fff"/>
@@ -139,7 +139,7 @@
     <g transform="translate(40 92)">
       <rect class="card info" x="0" y="0" width="190" height="86" rx="16"/>
       <text class="label" x="18" y="30">import-excel</text>
-      <text class="small" x="18" y="55">PLANILHA_FISCAL_MODELO</text>
+      <text class="small" x="18" y="55">PLANILHA_FISCAL.xlsm</text>
       <text class="small" x="18" y="73">gera YAML (configuracao)</text>
     </g>
     <path class="arrow" d="M245 136 H310"/>
@@ -211,7 +211,7 @@
       <text class="small" x="18" y="84">2 calcula SHA-256 (identidade)</text>
       <text class="small" x="18" y="108">3 consulta ledger (historico)</text>
       <text class="small" x="18" y="132">4 preserva original (copia de seguranca)</text>
-      <text class="tiny" x="18" y="155">originais/ guarda copia do PDF recebido</text>
+      <text class="tiny" x="18" y="155">backend/originais guarda copia tecnica</text>
     </g>
     <path class="arrow" d="M785 177 H875"/>
 

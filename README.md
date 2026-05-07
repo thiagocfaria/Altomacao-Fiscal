@@ -2,7 +2,7 @@
 
 Automacao Java para receber PDFs textuais de NFS-e, separar notas agrupadas, validar o CNPJ do tomador, identificar retencao/cancelamento, renomear arquivos e organizar cada nota nas pastas operacionais da empresa.
 
-O sistema foi desenhado para rodar fora do repositorio, apontando para as pastas reais cadastradas na planilha fiscal. Casos seguros vao para `processados/`; casos duvidosos ou fora do padrao vao para `revisar/`.
+O sistema foi desenhado para rodar fora do repositorio, apontando para as pastas reais cadastradas na planilha fiscal. Casos seguros vao para `processados/`, `RETIDO/` ou `canceladas/`; casos tecnicos duvidosos ficam no `backend/` do sistema.
 
 ## Sumario
 
@@ -42,28 +42,34 @@ Implementado:
 - processamento `batch` com scanner de entrada, destino, ledger e logs;
 - CLI operacional com Picocli;
 - modo `watch` com `WatchService`, varredura inicial e revarredura em overflow;
+- recarga do `watch` quando `empresas.yaml` muda ou quando a planilha informada em `--planilha` e salva;
 - retry no `watch` quando o PDF ainda esta sendo copiado e nao estabilizou;
 - trava de instancia por `empresas.yaml`, impedindo `batch` e `watch` simultaneos no mesmo cadastro;
 - modo de homologacao para preservar PDFs de entrada;
 - importacao de cadastro por planilha Excel `.xlsx`/`.xlsm`;
-- preparacao da planilha `PLANILHA_FISCAL_MODELO.xlsm` para preencher `CAMINHO REST`;
+- planilha `PLANILHA_FISCAL.xlsm` para preencher `CAMINHO REST`;
 - validacao tecnica de `empresas.yaml`;
 - bloqueio de CNPJ de tomador duplicado entre empresas de destino ativas;
 - roteamento de nota encontrada na pasta REST errada para a pasta REST correta quando o CNPJ do tomador da nota for conhecido;
 - preferencia por Portal Nacional quando existir ABRASF duplicada com os mesmos dados fiscais;
+- descarte de duplicidade fiscal tambem no mesmo layout quando a chave fiscal completa bate;
 - trava para nao remover duplicata operacional quando o indice apontar para arquivo fora da pasta da empresa;
+- dados tecnicos de execucao em `backend/`, fora da REST do cliente;
+- destino operacional `RETIDO/` para notas com imposto retido;
+- destino operacional `TOMADOR NAO ENCONTRADO/` para nota em pasta errada sem caminho REST ativo no Excel;
+- recuperacao automatica de `TOMADOR NAO ENCONTRADO/` quando o CNPJ do tomador passa a ter caminho REST ativo;
+- descarte da copia pendente quando o mesmo PDF ja foi processado no destino correto;
 - erros operacionais da CLI exibidos como `ERRO: ...`, sem stack trace Java para uso normal;
 - log operacional com `duracaoMs` por arquivo.
 
-Validado nesta maquina em 06/05/2026:
+Historico de validacao operacional:
 
-- JDK 17 portatil em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`;
-- Maven 3.9.9 portatil em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`;
-- `mvn test`: 97 testes, 0 falhas;
-- `mvn verify -Pintegration`: 97 testes unitarios + 1 teste de integracao, 0 falhas;
+- Ambiente Windows de referencia: JDK 17 portatil em `C:/Users/thiago.faria/tools/jdk-17.0.18+8` e Maven 3.9.9 portatil em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`;
+- Validacao local de desenvolvimento em 07/05/2026: `mvn -Dmaven.repo.local=/tmp/m2-nfse test`: 110 testes, 0 falhas;
+- Validacao local de integracao em 07/05/2026: `mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration`: 110 testes unitarios + 1 teste de integracao, 0 falhas;
 - `mvn package`: sucesso e jar gerado em `target/renomeador-nfse-0.1.0-SNAPSHOT.jar`;
 - `java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar --help`: sucesso;
-- `PLANILHA_FISCAL_MODELO.xlsm` importada com 88 empresas e configuracao validada;
+- `PLANILHA_FISCAL.xlsm` disponivel no projeto para operacao/teste;
 - homologacao controlada em pasta temporaria com os PDFs modelo: 16 notas/saidas processadas, 7 OK, 1 cancelada, 8 revisao, 0 erros;
 - reexecucao do mesmo lote: 0 processados, 10 ignorados por ledger, 0 erros.
 - homologacao real inicial em pasta REST errada: 17 paginas/saidas, 13 OK, 3 revisao, 1 cancelada, 0 erros.
@@ -82,7 +88,8 @@ Ainda pendente para liberar operacao:
 - Windows 10/11 ou Windows Server com permissao de leitura/escrita nas pastas REST.
 - Java 17 instalado ou portatil.
 - Maven 3.9+ apenas para compilar/testar o projeto. Para rodar o `.jar` pronto, Maven nao e necessario.
-- Acesso de escrita nas subpastas que o sistema cria ou usa: `processados/`, `revisar/`, `originais/` e `logs/`.
+- Acesso de escrita nas subpastas operacionais que o sistema cria ou usa: `processados/`, `RETIDO/`, `canceladas/` e, quando necessario, `TOMADOR NAO ENCONTRADO/`.
+- Acesso de escrita na pasta do `empresas.yaml`, onde o sistema cria `backend/` com logs, ledger, originais tecnicos e indices.
 - PDFs textuais. PDF escaneado/imagem sem texto selecionavel vai para revisao; a V1 nao usa OCR.
 
 ### Dependencias Java do projeto
@@ -130,11 +137,11 @@ java -jar target\renomeador-nfse-0.1.0-SNAPSHOT.jar --help
 
 ```bat
 scripts\windows\compilar.bat
-scripts\windows\preparar-planilha.bat C:\entrada\PLANILHA_ORIGINAL.xlsm C:\saida\PLANILHA_FISCAL_MODELO.xlsm
-scripts\windows\importar-planilha.bat C:\saida\PLANILHA_FISCAL_MODELO.xlsm C:\NFSE\empresas.yaml
+scripts\windows\preparar-planilha.bat C:\entrada\PLANILHA_ORIGINAL.xlsm C:\saida\PLANILHA_FISCAL.xlsm
+scripts\windows\importar-planilha.bat C:\saida\PLANILHA_FISCAL.xlsm C:\NFSE\empresas.yaml
 scripts\windows\validar-config.bat C:\NFSE\empresas.yaml
-scripts\windows\rodar-batch-homologacao.bat C:\NFSE\empresas.yaml
-scripts\windows\rodar-watch.bat C:\NFSE\empresas.yaml
+scripts\windows\rodar-batch-homologacao.bat C:\NFSE\empresas.yaml C:\saida\PLANILHA_FISCAL.xlsm
+scripts\windows\rodar-watch.bat C:\NFSE\empresas.yaml C:\saida\PLANILHA_FISCAL.xlsm
 ```
 
 ## Validacao tecnica
@@ -165,17 +172,23 @@ mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
 mvn -Dmaven.repo.local=/tmp/m2-nfse package
 ```
 
+## Referencias visuais e artefatos auxiliares
+
+Arquivos usados somente como inspiracao ou conferencia visual ficam em `docs/referencias/planilha/`. Eles nao participam do runtime Java, nao sao fonte de importacao do cadastro e nao substituem a planilha operacional `PLANILHA_FISCAL.xlsm`.
+
 ## Configuracao pela planilha
 
 Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codigo nao deve depender de PDFs ou pastas operacionais dentro do repositorio.
 
 Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for a pasta de PDFs modelo do projeto (`NF MODELO ABRASP E PORTAL NACIONAL/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
 
-A planilha de trabalho do projeto e `PLANILHA_FISCAL_MODELO.xlsm`. Ela preserva o VBA da planilha original, aplica identidade visual PROTONS, deixa filtro e cabecalho prontos, renomeia a coluna de cidade para `CIDADE`, formata `CNPJ` e `CAMINHO REST` como texto, marca CNPJs invalidos em amarelo para revisao, mantem 30 linhas extras prontas abaixo da ultima empresa cadastrada e inclui a coluna `SOMENTE ORIGEM`.
+A planilha de trabalho do projeto e `PLANILHA_FISCAL.xlsm`. Ela preserva o VBA da planilha original e agora e preparada em tres abas: `DASHBOARD`, com painel contabil inicial; `CADASTRO`, com os dados que alimentam o sistema; e `CONFIG`, com listas, paleta e contadores operacionais que o futuro importador podera atualizar. O `CADASTRO` mantem filtros, cabecalho congelado, `CNPJ` e caminhos como texto, `CAMINHO REST` destacado, `CAMINHO ENTRADAS`, `CAMINHO SAIDAS`, `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL`, `SENHA CERTIFICADO DIGITAL` opcional e `SOMENTE ORIGEM` para pastas que nao sao destino.
+
+O campo de senha do certificado fica fora do dashboard. Excel nao e cofre de senha; se esse campo for usado em producao, proteja o arquivo e limite o acesso a pasta da planilha.
 
 Mantenha apenas essa planilha modelo como planilha operacional local do projeto. A planilha bruta/original serve somente como entrada para recriar o modelo quando chegar uma versao nova; planilhas fiscais com dados de clientes nao devem ser publicadas no GitHub.
 
-O sistema importa a planilha para `empresas.yaml`; o `batch` e o `watch` rodam somente sobre esse YAML validado.
+O sistema importa a aba `CADASTRO` para `empresas.yaml`; em planilhas antigas, continua aceitando a aba `Dashboard Fiscal`. O `batch` e o `watch` rodam sobre esse YAML validado. Se `batch` ou `watch` forem chamados com `--planilha`, eles atualizam o `empresas.yaml` a partir da planilha antes de processar. No `watch`, salvar a planilha informada em `--planilha` faz o cadastro ser reimportado e os novos caminhos REST passam a ser observados.
 
 Cabecalhos obrigatorios:
 
@@ -183,16 +196,18 @@ Cabecalhos obrigatorios:
 - `cnpj`
 - `caminho`
 
-Na planilha `Dashboard Fiscal`, o sistema tambem entende o cabecalho da linha 2 e usa:
+Na aba `CADASTRO`, ou na planilha legada `Dashboard Fiscal`, o sistema tambem entende o cabecalho da linha 2 e usa:
 
 - `CLIENTE` como nome da empresa;
 - `CIDADE` como cidade da empresa;
 - `CNPJ` como CNPJ esperado do tomador;
 - `CAMINHO REST` como pasta direta monitorada.
 
+O `DASHBOARD` nao e fonte de importacao: ele mostra a tela inicial da operacao contabil, com total de clientes, notas importadas hoje, XMLs importados hoje, certificados em alerta, pendencias de cadastro e os 3 certificados digitais mais proximos do vencimento. Certificado com menos de 10 dias fica em vermelho, ate 15 dias em amarelo e acima disso em verde. Ao atualizar a validade do certificado na linha do cliente e salvar a planilha, o painel recalcula e remove o alerta quando ele nao estiver mais proximo do vencimento.
+
 O campo `CNPJ` da planilha sempre representa o CNPJ esperado do tomador da NFS-e. O CNPJ do prestador tambem aparece dentro da nota, mas ele nao decide qual pasta REST deve receber o PDF.
 
-O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST e tratado como a pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas `processados/`, `revisar/`, `originais/` e `logs/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento.
+O campo de caminho pode vir como texto na celula ou como hyperlink de arquivo. Cada caminho REST e tratado como a pasta direta monitorada daquela empresa; o sistema nao renomeia pastas reais, apenas organiza PDFs nas subpastas operacionais `processados/`, `RETIDO/`, `canceladas/` e, quando necessario, `TOMADOR NAO ENCONTRADO/`. Linhas com CNPJ de tomador valido e REST vazio entram no cadastro como clientes conhecidos, mas desabilitados para monitoramento.
 
 A coluna `SOMENTE ORIGEM` deve receber `SIM` somente para uma pasta de entrada generica ou pasta errada de teste. Essa linha sera monitorada como origem, mas nunca sera usada como destino por CNPJ. Se houver CNPJ invalido com `CAMINHO REST` preenchido e `SOMENTE ORIGEM` vazio, a importacao falha para evitar esconder erro de digitacao.
 
@@ -200,7 +215,7 @@ O mesmo CNPJ de tomador nao pode aparecer em duas empresas de destino ativas. Es
 
 ### Macro de duplo clique da planilha
 
-A `PLANILHA_FISCAL_MODELO.xlsm` deve ser aberta no Excel para Windows com macros habilitadas. O arquivo preserva o projeto VBA da planilha original e contem evento `Worksheet_BeforeDoubleClick` com seletor de pasta (`FileDialogFolderPicker`) para preencher o caminho.
+A `PLANILHA_FISCAL.xlsm` deve ser aberta no Excel para Windows com macros habilitadas. O arquivo preserva o projeto VBA da planilha original e contem evento `Worksheet_BeforeDoubleClick` com seletor de pasta (`FileDialogFolderPicker`) para preencher o caminho.
 
 Se o duplo clique nao abrir o Explorador de pastas:
 
@@ -215,13 +230,13 @@ Mesmo sem macro, o sistema continua funcionando se o caminho for colado manualme
 Se receber uma nova planilha bruta de fora, gere novamente a copia de trabalho:
 
 ```bash
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:/caminho/PLANILHA_FISCAL_ORIGINAL.xlsm --saida PLANILHA_FISCAL_MODELO.xlsm
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:/caminho/PLANILHA_FISCAL_ORIGINAL.xlsm --saida PLANILHA_FISCAL.xlsm
 ```
 
 Importar a planilha de trabalho:
 
 ```bash
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha PLANILHA_FISCAL_MODELO.xlsm --saida C:/caminho/empresas.yaml
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha PLANILHA_FISCAL.xlsm --saida C:/caminho/empresas.yaml
 ```
 
 Validar configuracao:
@@ -247,6 +262,12 @@ Execucao `batch`:
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config C:/caminho/empresas.yaml
 ```
 
+Execucao `batch` atualizando a partir da planilha antes da passada:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config C:/caminho/empresas.yaml --planilha C:/caminho/PLANILHA_FISCAL.xlsm
+```
+
 Limitar a uma empresa e informar mes:
 
 ```bash
@@ -265,18 +286,42 @@ Modo continuo:
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config C:/caminho/empresas.yaml
 ```
 
+Modo continuo acompanhando tambem alteracoes salvas na planilha:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config C:/caminho/empresas.yaml --planilha C:/caminho/PLANILHA_FISCAL.xlsm
+```
+
 Os comandos `batch` e `watch` usam uma trava por arquivo de configuracao. Se outro processo ja estiver rodando com o mesmo `empresas.yaml`, a segunda execucao falha com mensagem de instancia em uso. Para servidor, escolha uma rotina principal: `watch` continuo ou `batch` pelo Agendador do Windows; nao mantenha os dois concorrendo no mesmo cadastro.
 
-No modo `watch`, o Java fica aberto aguardando evento da pasta. Ele nao fica processando PDFs continuamente; trabalha na varredura inicial, quando entra arquivo novo, quando um PDF termina de copiar/alterar ou quando o sistema operacional avisa que precisa revarrer a pasta.
+No modo `watch`, o Java fica aberto aguardando evento da pasta. Ele trabalha na varredura inicial, quando entra arquivo novo, quando um PDF termina de copiar/alterar, quando o sistema operacional avisa que precisa revarrer a pasta, e quando o cadastro muda. Com `--planilha`, salvar a planilha faz o sistema reimportar o Excel, registrar novos caminhos REST e reprocessar pendencias de `TOMADOR NAO ENCONTRADO/`.
 
 Destinos por status:
 
 - `OK`: `processados/`;
-- cancelada: `revisar/canceladas/`;
+- `OK` com retencao: `RETIDO/`;
+- cancelada: `canceladas/`;
 - duplicada ABRASF com Portal Nacional equivalente: nao gera PDF operacional duplicado; Portal Nacional fica como principal;
+- duplicada no mesmo layout: nao gera PDF operacional duplicado;
 - nota em pasta errada com CNPJ do tomador encontrado e REST preenchido: processada pelo cadastro correto e enviada para as subpastas do caminho REST correto;
-- nota em pasta errada com CNPJ do tomador conhecido mas sem REST: `revisar/` com prefixo `NF_PASTA_INCORRETA_`;
-- CNPJ divergente desconhecido, sem texto, modelo nao suportado, dados ausentes, conflito de retencao ou erro tecnico: `revisar/`.
+- nota em pasta errada sem caminho REST ativo no Excel: fica na pasta atual em `TOMADOR NAO ENCONTRADO/`, com nome contendo tomador, CNPJ e valor;
+- nota que ja estava em `TOMADOR NAO ENCONTRADO/`: quando o CNPJ do tomador ganhar caminho REST ativo, vai para a REST correta com nome operacional normal; se a pasta pendente ficar vazia, ela e apagada;
+- se essa mesma nota ja existir no destino correto pelo ledger/hash, a copia em `TOMADOR NAO ENCONTRADO/` e apagada para nao manter duplicidade operacional;
+- sem texto, modelo nao suportado, dados ausentes, conflito de retencao ou erro tecnico: `backend/empresas/<empresa_id>/revisar/`.
+
+Os arquivos tecnicos ficam no backend ao lado do `empresas.yaml` usado na execucao:
+
+```text
+backend/
+  empresas/
+    <empresa_id>/
+      execucao.log
+      processados.idx
+      duplicadas.idx
+      originais/
+      revisar/
+      split-work/
+```
 
 ### Duplicidade Portal Nacional x ABRASF
 
@@ -292,7 +337,7 @@ A ABRASF so e descartada automaticamente quando todos estes campos extraidos for
 - valor do servico;
 - valor liquido.
 
-O horario de emissao nao entra nessa comparacao, porque pode variar entre modelos. Se algum campo fiscal for diferente, os dois PDFs sao mantidos para conferencia. O PDF recebido continua preservado em `originais/`; o descarte remove a duplicidade operacional da entrada ou de `processados/`.
+O horario de emissao nao entra nessa comparacao, porque pode variar entre modelos. Se algum campo fiscal for diferente, os dois PDFs sao mantidos para conferencia. O PDF recebido continua preservado em `backend/empresas/<empresa_id>/originais/`; o descarte remove somente duplicidade operacional em pasta controlada.
 
 ## Compatibilidade com caminhos grandes
 

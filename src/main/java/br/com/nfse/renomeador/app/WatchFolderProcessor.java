@@ -26,15 +26,22 @@ final class WatchFolderProcessor {
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
     private final ProcessingLogger logger;
+    private final MissingCustomerRecoveryProcessor recoveryProcessor;
 
     WatchFolderProcessor() {
         this(new InputScanner(), new InvoiceProcessingPipeline(), new ProcessingLogger());
     }
 
     WatchFolderProcessor(InputScanner scanner, InvoiceProcessingPipeline pipeline, ProcessingLogger logger) {
+        this(scanner, pipeline, logger, new MissingCustomerRecoveryProcessor(pipeline));
+    }
+
+    WatchFolderProcessor(InputScanner scanner, InvoiceProcessingPipeline pipeline, ProcessingLogger logger,
+                         MissingCustomerRecoveryProcessor recoveryProcessor) {
         this.scanner = scanner;
         this.pipeline = pipeline;
         this.logger = logger;
+        this.recoveryProcessor = recoveryProcessor;
     }
 
     ProcessingSummary processExisting(List<ResolvedCompanyPath> paths, boolean homologation) throws IOException {
@@ -51,15 +58,21 @@ final class WatchFolderProcessor {
         for (ResolvedCompanyPath path : paths) {
             summariesByPath.put(path, new ProcessingSummary());
         }
+        for (MissingCustomerRecoveryProcessor.RecoveryBatch batch : recoveryProcessor.recover(routes, homologation)) {
+            ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(batch.sourcePath(),
+                    ignored -> new ProcessingSummary());
+            recordResultsForExisting(batch.sourcePath(), batch.results(), pathSummary, summariesByPath, routes);
+            recordAll(overall, batch.results());
+        }
         for (InputCandidate candidate : scanner.scan(paths)) {
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(),
                     ignored -> new ProcessingSummary());
             List<FileProcessingResult> results = processCandidateWithRetry(candidate, homologation, routes);
-            recordResults(candidate.companyPath(), results, pathSummary, routes);
+            recordResultsForExisting(candidate.companyPath(), results, pathSummary, summariesByPath, routes);
             recordAll(overall, results);
         }
         for (Map.Entry<ResolvedCompanyPath, ProcessingSummary> entry : summariesByPath.entrySet()) {
-            logger.recordSummary(entry.getKey(), entry.getValue());
+            logger.recordSummary(routes, entry.getKey(), entry.getValue());
         }
         return overall;
     }
@@ -92,7 +105,7 @@ final class WatchFolderProcessor {
             recordResults(companyPath, processCandidateWithRetry(new InputCandidate(companyPath, file), homologation, routes),
                     summary, routes);
         }
-        logger.recordSummary(companyPath, summary);
+        logger.recordSummary(routes, companyPath, summary);
         return summary;
     }
 
@@ -127,21 +140,47 @@ final class WatchFolderProcessor {
         }
     }
 
+    private void recordResultsForExisting(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
+                                          ProcessingSummary summary,
+                                          Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath,
+                                          CompanyRouteDirectory routes) throws IOException {
+        for (FileProcessingResult result : results) {
+            recordOperationalLogs(companyPath, result, routes);
+            record(summary, result);
+            recordRoutedSummary(summariesByPath, companyPath, result, routes);
+        }
+    }
+
     private void recordOperationalLogs(ResolvedCompanyPath sourcePath, FileProcessingResult result,
                                        CompanyRouteDirectory routes) throws IOException {
-        logger.record(sourcePath, result);
+        logger.record(routes, sourcePath, result);
         if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
             return;
         }
         var targetPath = routes.activePathForCompanyId(result.companyId());
         if (targetPath.isPresent() && !targetPath.orElseThrow().equals(sourcePath)) {
-            logger.record(targetPath.orElseThrow(), result);
+            logger.record(routes, targetPath.orElseThrow(), result);
         }
     }
 
     private static void recordAll(ProcessingSummary summary, List<FileProcessingResult> results) {
         for (FileProcessingResult result : results) {
             record(summary, result);
+        }
+    }
+
+    private static void recordRoutedSummary(Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath,
+                                            ResolvedCompanyPath sourcePath,
+                                            FileProcessingResult result,
+                                            CompanyRouteDirectory routes) {
+        if (result.companyId() == null || result.companyId().equals(sourcePath.company().id())) {
+            return;
+        }
+        var targetPath = routes.activePathForCompanyId(result.companyId());
+        if (targetPath.isPresent() && !targetPath.orElseThrow().equals(sourcePath)) {
+            ProcessingSummary targetSummary = summariesByPath.computeIfAbsent(targetPath.orElseThrow(),
+                    ignored -> new ProcessingSummary());
+            record(targetSummary, result);
         }
     }
 
