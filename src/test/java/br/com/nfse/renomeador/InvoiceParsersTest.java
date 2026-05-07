@@ -8,18 +8,17 @@ import br.com.nfse.renomeador.pdf.PdfTextExtractor;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InvoiceParsersTest {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
     private final PdfTextExtractor extractor = new PdfTextExtractor();
 
     @Test
     void portalNacionalParserExtractsRequiredFieldsFromRealPdf() throws Exception {
-        String text = extractor.extractText(SAMPLES.resolve("NF 9 OK.pdf"));
+        String text = extractor.extractText(samplePdf("NF 9 OK.pdf"));
 
         InvoiceData invoice = new PortalNacionalParser().parse(text);
 
@@ -38,7 +37,7 @@ class InvoiceParsersTest {
 
     @Test
     void abrasfParserExtractsRequiredFieldsFromFirstRealPdfPage() throws Exception {
-        String page = extractor.extractPages(SAMPLES.resolve("NotasPdf.pdf")).get(0);
+        String page = extractor.extractPages(samplePdf("NotasPdf.pdf")).get(0);
 
         InvoiceData invoice = new AbrasfIssnetParser().parse(page);
 
@@ -57,7 +56,7 @@ class InvoiceParsersTest {
 
     @Test
     void abrasfParserExtractsRequiredFieldsFromGoianesiaMunicipalPdf() throws Exception {
-        String text = extractor.extractText(SAMPLES.resolve("NFSE_DESCONHECIDA_MODELO_NAO_SUPORTADO_sem-data_02.pdf"));
+        String text = extractor.extractText(samplePdf("NFSE_DESCONHECIDA_MODELO_NAO_SUPORTADO_sem-data_02.pdf"));
 
         InvoiceData invoice = new AbrasfIssnetParser().parse(text);
 
@@ -85,7 +84,7 @@ class InvoiceParsersTest {
         );
 
         for (String file : files) {
-            String text = extractor.extractText(SAMPLES.resolve(file));
+            String text = extractor.extractText(samplePdf(file));
             assertThat(new LayoutDetector().detect(text)).as(file + " layout").isEqualTo(LayoutType.ABRASF_ISSNET);
 
             InvoiceData invoice = new AbrasfIssnetParser().parse(text);
@@ -104,7 +103,7 @@ class InvoiceParsersTest {
 
     @Test
     void abrasfParserDetectsCancelledNoteFromRealPdfPage() throws Exception {
-        String page = extractor.extractPages(SAMPLES.resolve("NotasPdf.pdf")).get(4);
+        String page = extractor.extractPages(samplePdf("NotasPdf.pdf")).get(4);
 
         InvoiceData invoice = new AbrasfIssnetParser().parse(page);
 

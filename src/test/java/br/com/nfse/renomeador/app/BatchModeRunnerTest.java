@@ -16,11 +16,10 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BatchModeRunnerTest {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
-
     @TempDir
     Path tempDir;
 
@@ -28,8 +27,8 @@ class BatchModeRunnerTest {
     void batchProcessesMixedLotInHomologationModeAndPreservesInput() throws Exception {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
-        Files.copy(SAMPLES.resolve("NF 55034 OK.pdf"), input.resolve("NF 55034 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 55034 OK.pdf"), input.resolve("NF 55034 OK.pdf"));
         Path config = writeConfig("25.014.360/0001-73");
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
@@ -53,7 +52,7 @@ class BatchModeRunnerTest {
         Path systemRoot = Files.createDirectories(tempDir.resolve("sistema"));
         Path companyRoot = Files.createDirectories(tempDir.resolve("cliente"));
         Path input = Files.createDirectories(companyRoot.resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
         Path config = writeConfigAt(systemRoot.resolve("empresas.yaml"), "25.014.360/0001-73", companyRoot);
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
@@ -89,7 +88,7 @@ class BatchModeRunnerTest {
     void batchUsesLedgerToSkipSecondRun() throws Exception {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
         Path config = writeConfig("25.014.360/0001-73");
 
         new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
@@ -124,7 +123,7 @@ class BatchModeRunnerTest {
     void batchRoutesWrongCompanyToReview() throws Exception {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
         Path config = writeConfig("12.345.678/0001-95");
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
@@ -138,7 +137,7 @@ class BatchModeRunnerTest {
     void batchMovesInvoiceFromWrongFolderToCorrectKnownRestFolder() throws Exception {
         Path wrongInput = Files.createDirectories(tempDir.resolve("empresa_errada").resolve("entrada"));
         Files.createDirectories(tempDir.resolve("empresa_correta").resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), wrongInput.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), wrongInput.resolve("NF 9 OK.pdf"));
         Path config = writeTwoCompanyConfig(true);
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
@@ -164,7 +163,7 @@ class BatchModeRunnerTest {
     void batchRoutesSourceOnlyFolderByInvoiceCustomerTaxId() throws Exception {
         Path sourceInput = Files.createDirectories(tempDir.resolve("origem_generica").resolve("entrada"));
         Files.createDirectories(tempDir.resolve("empresa_correta").resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), sourceInput.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), sourceInput.resolve("NF 9 OK.pdf"));
         Path config = writeSourceOnlyConfig();
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
@@ -181,7 +180,7 @@ class BatchModeRunnerTest {
     @Test
     void batchKeepsInvoiceInReviewWhenCorrectCustomerHasNoRestFolder() throws Exception {
         Path wrongInput = Files.createDirectories(tempDir.resolve("empresa_errada").resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), wrongInput.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), wrongInput.resolve("NF 9 OK.pdf"));
         Path config = writeTwoCompanyConfig(false);
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
@@ -217,7 +216,7 @@ class BatchModeRunnerTest {
         Files.createDirectories(sourceRoot.resolve("entrada"));
         Files.createDirectories(targetRoot.resolve("entrada"));
         Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
         Path config = writeSourceOnlyConfig();
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
@@ -238,10 +237,10 @@ class BatchModeRunnerTest {
         Files.createDirectories(sourceRoot.resolve("entrada"));
         Path targetInput = Files.createDirectories(targetRoot.resolve("entrada"));
         Path config = writeSourceOnlyConfig();
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), targetInput.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), targetInput.resolve("NF 9 OK.pdf"));
         new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
         Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
 

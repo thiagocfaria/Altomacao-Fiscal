@@ -10,17 +10,16 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.List;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ExtractionServiceTest {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
-
     @TempDir
     Path tempDir;
 
     @Test
     void extractsPortalNacionalPdfThroughSingleEntryPoint() throws Exception {
-        ExtractionResult result = new InvoiceExtractionService().extract(SAMPLES.resolve("NF 9 OK.pdf"));
+        ExtractionResult result = new InvoiceExtractionService().extract(samplePdf("NF 9 OK.pdf"));
 
         assertThat(result.layout()).isEqualTo(LayoutType.PORTAL_NACIONAL);
         assertThat(result.invoice()).isPresent();
@@ -29,7 +28,7 @@ class ExtractionServiceTest {
 
     @Test
     void routesImageOnlyPdfToNoTextReview() throws Exception {
-        ExtractionResult result = new InvoiceExtractionService().extract(SAMPLES.resolve("NF 55034 OK.pdf"));
+        ExtractionResult result = new InvoiceExtractionService().extract(samplePdf("NF 55034 OK.pdf"));
 
         assertThat(result.layout()).isEqualTo(LayoutType.NO_TEXT);
         assertThat(result.invoice()).isEmpty();
@@ -38,7 +37,7 @@ class ExtractionServiceTest {
 
     @Test
     void splitsGroupedAbrasfPdfByPageWhenEachPageHasASupportedLayout() throws Exception {
-        var notes = new InvoiceSplitter().splitSupportedPages(SAMPLES.resolve("NotasPdf.pdf"));
+        var notes = new InvoiceSplitter().splitSupportedPages(samplePdf("NotasPdf.pdf"));
 
         assertThat(notes).hasSize(7);
         assertThat(notes).allSatisfy(note -> assertThat(note.layout()).isEqualTo(LayoutType.ABRASF_ISSNET));
@@ -48,7 +47,7 @@ class ExtractionServiceTest {
     void writesOnePhysicalPdfPerSupportedPageFromGroupedAbrasfPdf() throws Exception {
         Path outputDir = tempDir.resolve("split");
 
-        List<Path> files = new InvoiceSplitter().splitSupportedPagesToFiles(SAMPLES.resolve("NotasPdf.pdf"), outputDir);
+        List<Path> files = new InvoiceSplitter().splitSupportedPagesToFiles(samplePdf("NotasPdf.pdf"), outputDir);
 
         assertThat(files).hasSize(7);
         assertThat(files).allSatisfy(file -> {

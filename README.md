@@ -180,7 +180,7 @@ Arquivos usados somente como inspiracao ou conferencia visual ficam em `docs/ref
 
 Use `empresas.example.yaml` como base para o arquivo externo de empresas. O codigo nao deve depender de PDFs ou pastas operacionais dentro do repositorio.
 
-Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for a pasta de PDFs modelo do projeto (`NF MODELO ABRASP E PORTAL NACIONAL/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
+Para a homologacao inicial, o `batch` deve permitir apontar para uma pasta ja existente. Quando a origem for uma copia dos PDFs modelo do projeto (`src/test/resources/nfse-modelos/`), a execucao deve preservar a entrada e gravar resultados em uma pasta de saida separada, para nao mover nem apagar os PDFs usados como regressao.
 
 A planilha de trabalho do projeto e `PLANILHA_FISCAL.xlsm`. Ela preserva o VBA da planilha original e agora e preparada em tres abas: `DASHBOARD`, com painel contabil inicial; `CADASTRO`, com os dados que alimentam o sistema; e `CONFIG`, com listas, paleta e contadores operacionais que o futuro importador podera atualizar. O `CADASTRO` mantem filtros, cabecalho congelado, `CNPJ` e caminhos como texto, `CAMINHO REST` destacado, `CAMINHO ENTRADAS`, `CAMINHO SAIDAS`, `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL`, `SENHA CERTIFICADO DIGITAL` opcional e `SOMENTE ORIGEM` apenas para casos excepcionais de pasta generica com CNPJ invalido.
 

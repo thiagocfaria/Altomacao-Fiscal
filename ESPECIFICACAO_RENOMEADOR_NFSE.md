@@ -232,7 +232,7 @@ modo watch ou batch e iniciado
 - qualquer incerteza tecnica deve ir para backend/revisar, nao para `processados/`;
 - o arquivo operacional nunca pode ser perdido ou sobrescrito sem registro em ledger/log;
 - a primeira versao sera homologada com um conjunto controlado de PDFs reais;
-- os primeiros layouts foco do piloto serao os PDFs da pasta `NF MODELO ABRASP E PORTAL NACIONAL/`, embora o nome tecnico correto do padrao seja ABRASF;
+- os primeiros layouts foco do piloto ficam como fixtures em `src/test/resources/nfse-modelos/`, embora o nome tecnico correto do padrao seja ABRASF;
 - quando o CNPJ do tomador nao corresponder ao CNPJ configurado da empresa, a nota deve receber status `CNPJ INCORRETO PARA REPOSITORIO`;
 - quando o layout nao corresponder a um padrao homologado, a nota deve receber status `MODELO NAO SUPORTADO`;
 - quando a nota estiver cancelada, nunca deve seguir fluxo normal de processados;
@@ -656,7 +656,7 @@ Esta ordem substitui a ideia de fases soltas. Cada etapa deve terminar com teste
 **Testes obrigatorios**
 
 - teste integrado em diretorio temporario com lote misto;
-- teste manual apontando para a pasta `NF MODELO ABRASP E PORTAL NACIONAL/` em modo de homologacao/preservacao;
+- teste manual apontando para uma copia externa dos PDFs de `src/test/resources/nfse-modelos/` em modo de homologacao/preservacao;
 - teste de pasta vazia;
 - teste de reexecucao do mesmo lote;
 - teste de CNPJ divergente;

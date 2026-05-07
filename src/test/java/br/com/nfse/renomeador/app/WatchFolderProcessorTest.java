@@ -19,11 +19,10 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WatchFolderProcessorTest {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
-
     @TempDir
     Path tempDir;
 
@@ -32,7 +31,7 @@ class WatchFolderProcessorTest {
         ResolvedCompanyPath companyPath = companyPath();
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
 
         var summary = new WatchFolderProcessor().processExisting(List.of(companyPath), true);
 
@@ -47,7 +46,7 @@ class WatchFolderProcessorTest {
         ResolvedCompanyPath second = companyPath("empresa_vazia", tempDir.resolve("empresa_b"));
         Files.createDirectories(first.root().resolve("entrada"));
         Files.createDirectories(second.root().resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), first.root().resolve("entrada").resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), first.root().resolve("entrada").resolve("NF 9 OK.pdf"));
 
         new WatchFolderProcessor().processExisting(List.of(first, second), true);
 
@@ -63,7 +62,7 @@ class WatchFolderProcessorTest {
         ResolvedCompanyPath companyPath = companyPath();
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
 
         var summary = new WatchFolderProcessor().processEvents(input, companyPath,
                 List.of(overflowEvent()), true);
@@ -76,7 +75,7 @@ class WatchFolderProcessorTest {
         ResolvedCompanyPath companyPath = companyPath();
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
         Files.writeString(input.resolve("ignorado.txt"), "nao processar");
 
         var summary = new WatchFolderProcessor().processEvents(input, companyPath, List.of(
@@ -93,7 +92,7 @@ class WatchFolderProcessorTest {
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
         Path pdf = input.resolve("NF 9 OK.pdf");
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pdf);
+        Files.copy(samplePdf("NF 9 OK.pdf"), pdf);
 
         Thread toucher = touchFor(pdf, Duration.ofMillis(650));
         var summary = new WatchFolderProcessor().processEvents(input, companyPath,

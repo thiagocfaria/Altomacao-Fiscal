@@ -12,11 +12,10 @@ import java.time.YearMonth;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WatchModeRunnerTest {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
-
     @TempDir
     Path tempDir;
 
@@ -26,7 +25,7 @@ class WatchModeRunnerTest {
         Path targetRoot = tempDir.resolve("empresa_correta");
         Files.createDirectories(sourceRoot.resolve("entrada"));
         Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
         Path config = tempDir.resolve("empresas.yaml");
         writeWatchConfig(config, sourceRoot, targetRoot, false);
 
@@ -65,7 +64,7 @@ class WatchModeRunnerTest {
         Path targetRoot = tempDir.resolve("empresa_correta");
         Files.createDirectories(sourceRoot.resolve("entrada"));
         Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
         Path spreadsheet = tempDir.resolve("PLANILHA_FISCAL.xlsx");
         Path config = tempDir.resolve("empresas.yaml");
         writeSpreadsheet(spreadsheet, sourceRoot, targetRoot, false);

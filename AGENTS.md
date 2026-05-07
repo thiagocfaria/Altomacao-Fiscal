@@ -59,7 +59,7 @@ Regras de fronteira (nao violar):
 
 | Layout | Identificacao no texto | Pasta de amostras |
 |---|---|---|
-| **Portal Nacional (DANFSe v1.0)** | `"DANFSe v1.0"` + `"Numero da DPS"` | `NF MODELO ABRASP E PORTAL NACIONAL/` |
+| **Portal Nacional (DANFSe v1.0)** | `"DANFSe v1.0"` + `"Numero da DPS"` | `src/test/resources/nfse-modelos/` |
 | **ABRASF municipal** | `"Nota Fiscal de Servico Eletronica"` + `"Cod. de Autenticidade"` | mesma pasta |
 | **Nao suportado** | nenhum dos dois | renomear com prefixo `MODELO_NAO_SUPORTADO_` |
 

@@ -8,7 +8,7 @@ Atualizado em 07/05/2026.
 
 - Repositorio Git inicializado e preparado para publicar no GitHub.
 - Projeto Java 17/Maven criado em `src/main/java`.
-- Lote piloto disponivel em `NF MODELO ABRASP E PORTAL NACIONAL/`.
+- Lote piloto mantido como fixture de teste em `src/test/resources/nfse-modelos/`.
 - `NotasPdf.pdf` tem 7 paginas/notas na amostra atual.
 - MCP `codebase-memory-mcp` indexado para este projeto.
 - LSP Java documentado via `.claude/settings.json`.
@@ -148,7 +148,7 @@ java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config empresas.yaml
 
 ## 6. Resultado da homologacao controlada
 
-Executada em 30/04/2026 com copia dos PDFs de `NF MODELO ABRASP E PORTAL NACIONAL/` para pasta temporaria:
+Executada em 30/04/2026 com copia dos PDFs de `src/test/resources/nfse-modelos/` para pasta temporaria:
 
 ```text
 Processados=16 OK=7 Canceladas=1 Ignorados=0 Erros=0

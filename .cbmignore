@@ -1,6 +1,6 @@
 # codebase-memory-mcp — escopo deste projeto
 # PDFs de amostra sao fixtures, nao codigo. Excluir do grafo.
-NF MODELO ABRASP E PORTAL NACIONAL/
+src/test/resources/nfse-modelos/
 
 # Docs operacionais e de especificacao (nao sao codigo)
 docs/operacao/

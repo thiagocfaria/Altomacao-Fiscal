@@ -37,7 +37,7 @@ No `.claude/settings.json`, trocar `"jdtls-lsp@claude-plugins-official": true` p
 | Escopo | Global (instalado no usuario, funciona em todos os projetos) |
 | Status neste projeto | Ativo e ja indexado para este repositorio Java |
 | Para reindexar | `index_repository` apontando para a raiz deste projeto |
-| `.cbmignore` | Configurado para excluir `NF MODELO ABRASP E PORTAL NACIONAL/` e `docs/operacao/` |
+| `.cbmignore` | Configurado para excluir `src/test/resources/nfse-modelos/` e `docs/operacao/` |
 | Funcoes | Grafo de chamadas, blast radius, navegacao estrutural, busca por simbolo |
 | Documentacao | `docs/operacao/MCP_AVALIACAO.md` |
 
@@ -93,8 +93,8 @@ As skills ficam em `.claude/skills/`. O Claude Code as carrega automaticamente n
 |---|---|
 | Arquivo | `.claude/skills/validacao-extracao-pdf/SKILL.md` |
 | Ativa quando | Mudanca em parser ou novo campo — protege contra regressao silenciosa |
-| Funcao | Golden values dos 10 PDFs do lote piloto; templates de teste JUnit 5 |
-| Lote piloto | `NF MODELO ABRASP E PORTAL NACIONAL/` (10 arquivos, 2 layouts, 1 multi-nota, 1 cancelada) |
+| Funcao | Golden values dos PDFs do lote piloto; templates de teste JUnit 5 |
+| Lote piloto | `src/test/resources/nfse-modelos/` (15 arquivos, 2 layouts, 1 multi-nota, 1 cancelada) |
 
 ### validacao-performance-java
 

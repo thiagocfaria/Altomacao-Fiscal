@@ -9,18 +9,17 @@ import java.nio.file.Path;
 import java.time.YearMonth;
 import java.util.Optional;
 
+import static br.com.nfse.renomeador.TestSamples.samplePdf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BatchModeRunnerIT {
-    private static final Path SAMPLES = Path.of("NF MODELO ABRASP E PORTAL NACIONAL");
-
     @TempDir
     Path tempDir;
 
     @Test
     void processesRealPortalPdfEndToEndFromYamlConfig() throws Exception {
         Path input = Files.createDirectories(tempDir.resolve("entrada"));
-        Files.copy(SAMPLES.resolve("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
         Path config = writeConfig();
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
