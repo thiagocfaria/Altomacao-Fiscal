@@ -17,7 +17,7 @@ public final class MonthlyPathResolver {
                     .map(MonthlyPathResolver::parseMonth)
                     .map(month -> resolveMonth(company, month))
                     .toList();
-            case DIRECT -> List.of(new ResolvedCompanyPath(company, company.basePath(), Optional.empty()));
+            case DIRECT -> List.of(new ResolvedCompanyPath(company, company.basePath(), company.importedMonth()));
         };
     }
 

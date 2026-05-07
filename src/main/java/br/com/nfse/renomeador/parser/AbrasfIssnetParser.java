@@ -14,19 +14,26 @@ public final class AbrasfIssnetParser implements InvoiceParser {
     private static final Pattern MUNICIPAL_HEADER_NUMBER = Pattern.compile("(?s)NOTA FISCAL ELETRONICA.*?\\bN[º°O]?\\s*(?:DA\\s+)?(\\d+)\\b");
     private static final Pattern MUNICIPAL_NUMBER_AFTER_DA = Pattern.compile("(?m)\\bN[º°O]?\\s+DA\\s+(\\d+)\\b");
     private static final Pattern MUNICIPAL_STANDALONE_NUMBER = Pattern.compile("(?m)^\\s*N[º°O]?\\s*(\\d+)\\s*$");
+    private static final Pattern MUNICIPAL_NUMERO_DA_NOTA = Pattern.compile("(?s)NUMERO DA NOTA\\D{0,80}?(\\d{4,})");
     private static final Pattern CUSTOMER_NAME = Pattern.compile("(?m)Raz[aã]o Social\\s*:\\s*(.+)$");
     private static final Pattern NAME_AFTER_NOME_RAZAO = Pattern.compile("(?m)Nome/Raz[aã]o:\\s*(.+)$");
+    private static final Pattern RAZAO_SOCIAL_UPPER = Pattern.compile("(?m)RAZAO SOCIAL:\\s*(.+)$");
+    private static final Pattern NOME_RAZAO_SOCIAL_UPPER = Pattern.compile("(?m)NOME/RAZAO SOCIAL:\\s*(.+)$");
     private static final Pattern MUNICIPAL_SERVICE_VALUE = Pattern.compile("VALOR DOS SERVICOS\\s*R\\$\\s*([0-9.]+,[0-9]{2})");
     private static final Pattern MUNICIPAL_NET_VALUE = Pattern.compile("VALOR LIQUIDO\\s*R\\$\\s*([0-9.]+,[0-9]{2})");
 
     @Override
     public InvoiceData parse(String text) {
+        String normalized = TextNormalizer.normalize(text);
         String prestador = ParserSupport.section(text, "Dados do Prestador", "Identificacao da Nota Fiscal");
         if (prestador.isBlank()) {
             prestador = ParserSupport.section(text, "Dados do Prestador", "Identificação da Nota Fiscal");
         }
         if (prestador.isBlank()) {
             prestador = ParserSupport.section(text, "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS");
+        }
+        if (prestador.isBlank()) {
+            prestador = ParserSupport.section(normalized, "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS");
         }
         String tomador = ParserSupport.section(text, "Dados do Tomador de Servicos", "Dados do Intermediario");
         if (tomador.isBlank()) {
@@ -35,10 +42,15 @@ public final class AbrasfIssnetParser implements InvoiceParser {
         if (tomador.isBlank()) {
             tomador = ParserSupport.section(text, "TOMADOR DE SERVICOS", "Discriminacao dos servicos prestados");
         }
+        if (tomador.isBlank()) {
+            tomador = ParserSupport.section(normalized, "TOMADOR DE SERVICOS", "DISCRIMINACAO DOS SERVICOS");
+        }
+        if (tomador.isBlank()) {
+            tomador = ParserSupport.section(normalized, "TOMADOR DE SERVICOS", "RETENCOES FEDERAIS");
+        }
         List<BigDecimal> money = ParserSupport.moneyValues(ParserSupport.section(text, "Vl. Total dos Servicos", "Informacoes Adicionais"));
         BigDecimal serviceValue = money.isEmpty() ? null : money.get(0);
         BigDecimal netValue = money.isEmpty() ? null : money.get(money.size() - 1);
-        String normalized = TextNormalizer.normalize(text);
         if (serviceValue == null) {
             serviceValue = findMoney(MUNICIPAL_SERVICE_VALUE, normalized);
         }
@@ -81,6 +93,10 @@ public final class AbrasfIssnetParser implements InvoiceParser {
         if (matcher.find()) {
             return matcher.group(1);
         }
+        matcher = MUNICIPAL_NUMERO_DA_NOTA.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
         return "";
     }
 
@@ -88,6 +104,10 @@ public final class AbrasfIssnetParser implements InvoiceParser {
         String provider = findNameAfterNomeRazao(prestador);
         if (!provider.isBlank()) {
             return provider;
+        }
+        Matcher matcher = RAZAO_SOCIAL_UPPER.matcher(prestador);
+        if (matcher.find()) {
+            return ParserSupport.cleanName(matcher.group(1));
         }
         return ParserSupport.firstMeaningfulLine(prestador);
     }
@@ -97,7 +117,15 @@ public final class AbrasfIssnetParser implements InvoiceParser {
         if (matcher.find()) {
             return ParserSupport.cleanName(matcher.group(1));
         }
-        return findNameAfterNomeRazao(tomador);
+        String result = findNameAfterNomeRazao(tomador);
+        if (!result.isBlank()) {
+            return result;
+        }
+        matcher = NOME_RAZAO_SOCIAL_UPPER.matcher(tomador);
+        if (matcher.find()) {
+            return ParserSupport.cleanName(matcher.group(1));
+        }
+        return "";
     }
 
     private static String findNameAfterNomeRazao(String text) {

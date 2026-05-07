@@ -9,9 +9,11 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class CompanyRegistryLoader {
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
@@ -51,8 +53,11 @@ public final class CompanyRegistryLoader {
         List<String> months = stringList(map.get("meses"));
         CompanyFolders folders = toFolders(map.get("pastas"));
 
+        String mesValue = optionalString(map, "mes", "");
+        Optional<YearMonth> importedMonth = mesValue.isBlank() ? Optional.empty()
+                : Optional.of(YearMonth.parse(mesValue));
         return new CompanyConfig(id, enabled, customerTaxId, strategy, months, basePath, monthSubfolder,
-                folders, sourceOnly);
+                folders, sourceOnly, importedMonth);
     }
 
     private static CompanyFolders toFolders(Object foldersNode) {

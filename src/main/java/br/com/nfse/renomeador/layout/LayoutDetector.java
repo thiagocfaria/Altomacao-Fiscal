@@ -40,11 +40,12 @@ public final class LayoutDetector {
 
     private static boolean isMunicipalAbrasf(String normalized) {
         boolean hasInvoiceTitle = normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICO")
-                || normalized.contains("NOTA FISCAL ELETRONICA DE SERVICOS");
-        return hasInvoiceTitle && containsAll(normalized,
-                "CODIGO VERIFICACAO",
-                "PRESTADOR DE SERVICOS",
-                "TOMADOR DE SERVICOS");
+                || normalized.contains("NOTA FISCAL ELETRONICA DE SERVICOS")
+                || normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICA");
+        return hasInvoiceTitle && (
+                containsAll(normalized, "CODIGO VERIFICACAO", "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS")
+                || containsAll(normalized, "CODIGO DE VERIFICACAO", "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS")
+        );
     }
 
     private static boolean containsAll(String text, String... markers) {

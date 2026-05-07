@@ -74,6 +74,7 @@ Atualizado em 07/05/2026.
 - [x] Card `CERT. ALERTA` corrigido: fica verde sem vencimentos proximos, amarelo quando houver certificados vencendo em ate 30 dias e vermelho quando houver certificados com menos de 15 dias; o numero exibido prioriza a faixa mais critica.
 - [x] Cadastro mensal implementado na planilha: `CAMINHO ENTRADA/SAIDA` substitui as duas colunas antigas separadas, caminhos DMS/REST/ENTRADA-SAIDA ficam em branco nas abas futuras e certificado digital permanece copiado para todos os meses.
 - [x] `batch`, `watch` e `config import-excel` usam a aba mensal correta quando recebem `--mes`; sem `--mes`, usam o mes atual da execucao.
+- [x] Roteamento automatico por data de emissao: quando `--mes` e omitido e `--planilha` e fornecido, o sistema importa TODAS as abas `CADASTRO MES` de uma vez, gravando o campo `mes` em cada entrada do `empresas.yaml`; ao processar um PDF, a data de emissao extraida do proprio PDF determina qual caminho REST usar — PDF de abril vai para o caminho de abril, PDF de maio vai para o caminho de maio; se o mes correto nao tiver caminho cadastrado, o arquivo vai para `TOMADOR NAO ENCONTRADO/` com nome correto; planilhas sem abas CADASTRO continuam funcionando no modo aba unica (compatibilidade).
 - [x] Importador ignora linha mensal marcada como `SOMENTE ORIGEM` quando ainda nao existe caminho do mes preenchido, evitando bloqueio nas abas futuras clonadas.
 - [x] `CADASTRO MAIO` da planilha real importado em YAML temporario em 07/05/2026: 124 empresas importadas e `config check` aprovado.
 - [x] Log operacional registra `duracaoMs` por arquivo.
@@ -84,9 +85,9 @@ Atualizado em 07/05/2026.
 - [x] CLI exibe erros operacionais como `ERRO: ...`, sem stack trace Java para uso normal.
 - [x] JDK 17 portatil instalado em `C:/Users/thiago.faria/tools/jdk-17.0.18+8`.
 - [x] Maven 3.9.9 portatil instalado em `C:/Users/thiago.faria/tools/apache-maven-3.9.9`.
-- [x] `mvn test` aprovado em 07/05/2026: 113 testes, 0 falhas.
+- [x] `mvn test` aprovado em 07/05/2026 (segunda vez, pos roteamento por data): 113 testes, 0 falhas.
 - [x] `mvn verify -Pintegration` aprovado em 07/05/2026: 113 testes unitarios + 1 teste de integracao, 0 falhas.
-- [x] `mvn package` aprovado em 07/05/2026: 113 testes, 0 falhas.
+- [x] `mvn package` aprovado em 07/05/2026 (segunda vez): 113 testes, 0 falhas.
 - [x] Jar validado com `--help`.
 - [x] Homologacao controlada com PDFs modelo em pasta temporaria.
 - [x] Reexecucao validada: 10 arquivos ignorados por ledger, 0 erros.
@@ -101,13 +102,23 @@ Atualizado em 07/05/2026.
 
 ## 4. Proximo passo recomendado
 
-Validar o pacote P1 no Windows/Excel oficial da operacao:
+Validar o novo fluxo multi-mes no ambiente operacional:
 
 ```text
-config import-excel -> config check -> batch --homologacao -> conferir backend/empresas/<id>/execucao.log e pastas operacionais -> escolher batch agendado OU watch continuo com --planilha -> teste .bat/watch -> liberar P1
+# Importar TODOS os meses da planilha de uma so vez (novo padrao):
+config import-excel --planilha PLANILHA_FISCAL.xlsm --saida empresas.yaml --sobrescrever
+config check --config empresas.yaml
+
+# Processar PDFs — o sistema usa a data do PDF para escolher o mes certo automaticamente:
+batch --config empresas.yaml --homologacao
+# conferir: PDF de abril -> caminho ABRIL, PDF de maio -> caminho MAIO
+# PDF sem caminho para o mes -> TOMADOR NAO ENCONTRADO/ com nome correto
+
+# Modo batch automatico via script (renomeador --real importa todos os meses automaticamente):
+# renomeador.ps1 agora chama config import-excel sem --mes, importando todos os meses
 ```
 
-A homologacao controlada e a homologacao real inicial ja foram feitas fora do repositorio, preservando os PDFs de entrada quando necessario. O proximo teste deve ser no Windows/Excel oficial da operacao.
+Para atualizar o script `renomeador.ps1` na area de trabalho: a linha `config import-excel --planilha $planilha --saida $yaml --sobrescrever` ja funciona sem `--mes` — importara todos os meses automaticamente.
 
 ## 5. Comandos de verificacao
 
@@ -122,10 +133,16 @@ mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
 mvn -Dmaven.repo.local=/tmp/m2-nfse package
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preparar-planilha --entrada C:\caminho\PLANILHA_FISCAL_ORIGINAL.xlsm --saida C:\caminho\PLANILHA_FISCAL.xlsm
+# importar todos os meses (novo padrao sem --mes):
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha C:\caminho\PLANILHA_FISCAL.xlsm --saida C:\caminho\empresas.yaml --sobrescrever
+# importar so um mes especifico:
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config import-excel --planilha C:\caminho\PLANILHA_FISCAL.xlsm --saida C:\caminho\empresas.yaml --sobrescrever --mes 2026-05
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config check --config C:\caminho\empresas.yaml
+# processar sem --mes (data do PDF decide o caminho):
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config empresas.yaml --homologacao
+# processar com --mes (comportamento antigo):
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar batch --config empresas.yaml --homologacao --mes 2026-05
-java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config empresas.yaml --planilha PLANILHA_FISCAL.xlsm --mes 2026-05
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar watch --config empresas.yaml --planilha PLANILHA_FISCAL.xlsm
 ```
 
 ## 6. Resultado da homologacao controlada

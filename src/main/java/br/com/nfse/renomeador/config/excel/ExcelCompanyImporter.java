@@ -65,6 +65,90 @@ public final class ExcelCompanyImporter {
         }
     }
 
+    public int importAllMonthsToYaml(Path workbookPath, Path outputYaml, boolean overwrite) throws IOException {
+        return importAllMonthsToYaml(workbookPath, outputYaml, overwrite, LocalDate.now());
+    }
+
+    public int importAllMonthsToYaml(Path workbookPath, Path outputYaml, boolean overwrite,
+                                     LocalDate executionDate) throws IOException {
+        if (Files.exists(outputYaml) && !overwrite) {
+            throw new IllegalArgumentException("Arquivo de saida ja existe: " + outputYaml);
+        }
+        try (InputStream input = Files.newInputStream(workbookPath);
+             Workbook workbook = WorkbookFactory.create(input)) {
+            int sheetsFound = 0;
+            List<ImportedCompany> allCompanies = new ArrayList<>();
+            Map<String, Integer> idCounts = new HashMap<>();
+            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                Sheet sheet = workbook.getSheetAt(i);
+                Optional<YearMonth> month = monthFromSheetName(sheet.getSheetName(), executionDate.getYear());
+                if (month.isEmpty()) continue;
+                sheetsFound++;
+                try {
+                    allCompanies.addAll(readCompaniesForMonth(sheet, month.get(), idCounts));
+                } catch (IllegalArgumentException e) {
+                    if (e.getMessage() != null && e.getMessage().contains("cabecalho obrigatorio")) {
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+            if (sheetsFound == 0) {
+                // Sem abas CADASTRO: usar fallback de aba unica (compatibilidade com planilhas legadas e testes)
+                List<ImportedCompany> companies = readCompanies(sheet(workbook, null, Optional.empty(), executionDate));
+                if (companies.isEmpty()) {
+                    throw new IllegalArgumentException("Nenhuma empresa valida encontrada na planilha");
+                }
+                if (outputYaml.getParent() != null) Files.createDirectories(outputYaml.getParent());
+                Files.writeString(outputYaml, yamlFor(companies), StandardCharsets.UTF_8);
+                return companies.size();
+            }
+            if (allCompanies.isEmpty()) {
+                throw new IllegalArgumentException("Nenhuma empresa valida encontrada em nenhuma aba CADASTRO");
+            }
+            if (outputYaml.getParent() != null) {
+                Files.createDirectories(outputYaml.getParent());
+            }
+            Files.writeString(outputYaml, yamlFor(allCompanies), StandardCharsets.UTF_8);
+            return allCompanies.size();
+        } catch (IOException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Falha ao importar planilha: " + exception.getMessage(), exception);
+        }
+    }
+
+    private static Optional<YearMonth> monthFromSheetName(String name, int year) {
+        if (name == null) return Optional.empty();
+        String upper = name.strip().toUpperCase(Locale.ROOT);
+        if (!upper.startsWith("CADASTRO ")) return Optional.empty();
+        String monthPart = upper.substring("CADASTRO ".length()).strip();
+        Month month = switch (monthPart) {
+            case "JANEIRO" -> Month.JANUARY;
+            case "FEVEREIRO" -> Month.FEBRUARY;
+            case "MARCO" -> Month.MARCH;
+            case "ABRIL" -> Month.APRIL;
+            case "MAIO" -> Month.MAY;
+            case "JUNHO" -> Month.JUNE;
+            case "JULHO" -> Month.JULY;
+            case "AGOSTO" -> Month.AUGUST;
+            case "SETEMBRO" -> Month.SEPTEMBER;
+            case "OUTUBRO" -> Month.OCTOBER;
+            case "NOVEMBRO" -> Month.NOVEMBER;
+            case "DEZEMBRO" -> Month.DECEMBER;
+            default -> null;
+        };
+        return month == null ? Optional.empty() : Optional.of(YearMonth.of(year, month));
+    }
+
+    private static List<ImportedCompany> readCompaniesForMonth(Sheet sheet, YearMonth month,
+                                                               Map<String, Integer> idCounts) {
+        return readCompanies(sheet, idCounts).stream()
+                .map(c -> new ImportedCompany(c.id(), c.name(), c.taxId(), c.pathMissing(), c.path(),
+                        c.sourceOnly(), Optional.of(month)))
+                .toList();
+    }
+
     private static Sheet sheet(Workbook workbook, String sheetName) {
         return sheet(workbook, sheetName, Optional.empty(), LocalDate.now());
     }
@@ -122,6 +206,10 @@ public final class ExcelCompanyImporter {
     }
 
     private static List<ImportedCompany> readCompanies(Sheet sheet) {
+        return readCompanies(sheet, new HashMap<>());
+    }
+
+    private static List<ImportedCompany> readCompanies(Sheet sheet, Map<String, Integer> idCounts) {
         HeaderRow headerRow = findHeaderRow(sheet);
         Row header = headerRow.row();
         Map<String, Integer> columns = columns(header);
@@ -131,7 +219,6 @@ public final class ExcelCompanyImporter {
         Integer sourceOnlyColumn = columns.get("somenteorigem");
 
         List<ImportedCompany> companies = new ArrayList<>();
-        Map<String, Integer> idCounts = new HashMap<>();
         for (int rowIndex = headerRow.index() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
             Row row = sheet.getRow(rowIndex);
             if (row == null) {
@@ -338,8 +425,9 @@ public final class ExcelCompanyImporter {
                     .append("    somenteOrigem: ").append(company.sourceOnly()).append("\n")
                     .append("    cnpjTomador: \"").append(escape(company.taxId())).append("\"\n")
                     .append("    estrategiaMes: \"direto\"\n")
-                    .append("    meses: []\n")
-                    .append("    pastaBase: \"").append(escape(company.path().toString().replace("\\", "/"))).append("\"\n")
+                    .append("    meses: []\n");
+            company.month().ifPresent(m -> yaml.append("    mes: \"").append(m).append("\"\n"));
+            yaml.append("    pastaBase: \"").append(escape(company.path().toString().replace("\\", "/"))).append("\"\n")
                     .append("    subpastaMes: \"{AAAA}/{MM}\"\n")
                     .append("    pastas:\n")
                     .append("      entrada: \".\"\n")
@@ -357,6 +445,9 @@ public final class ExcelCompanyImporter {
     }
 
     private record ImportedCompany(String id, String name, String taxId, boolean pathMissing, Path path,
-                                   boolean sourceOnly) {
+                                   boolean sourceOnly, Optional<YearMonth> month) {
+        ImportedCompany(String id, String name, String taxId, boolean pathMissing, Path path, boolean sourceOnly) {
+            this(id, name, taxId, pathMissing, path, sourceOnly, Optional.empty());
+        }
     }
 }

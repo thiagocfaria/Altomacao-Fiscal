@@ -123,8 +123,12 @@ public final class WatchModeRunner {
     }
 
     private void refreshFromSpreadsheet(Path config, Optional<Path> spreadsheet, Optional<YearMonth> month) throws IOException {
-        if (spreadsheet.isPresent()) {
-            excelImporter.importToYaml(spreadsheet.orElseThrow(), config, "", true, month, LocalDate.now());
+        if (spreadsheet.isEmpty()) return;
+        Path planilha = spreadsheet.orElseThrow();
+        if (month.isPresent()) {
+            excelImporter.importToYaml(planilha, config, "", true, month, LocalDate.now());
+        } else {
+            excelImporter.importAllMonthsToYaml(planilha, config, true);
         }
     }
 

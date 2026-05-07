@@ -27,8 +27,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class InvoiceProcessingPipeline {
     private final StableFileGuard stableFileGuard;
@@ -152,18 +154,24 @@ public final class InvoiceProcessingPipeline {
         InvoiceData invoice;
         if (extraction.invoice().isPresent()) {
             invoice = extraction.invoice().orElseThrow();
-            if (shouldResolveByCustomerTaxId(invoice, companyPath)) {
-                var target = routes.activePathForCustomerTaxId(invoice.customerTaxId());
-                if (target.isPresent() && !target.orElseThrow().equals(companyPath)) {
-                    return processSingle(workFile, originalSource, target.orElseThrow(), preserveInput, routes);
+            boolean wrongTaxId = shouldResolveByCustomerTaxId(invoice, companyPath);
+            boolean wrongMonth = !wrongTaxId && shouldRerouteByEmissionMonth(invoice, companyPath);
+            if (wrongTaxId || wrongMonth) {
+                Optional<YearMonth> emissionMonth = parseEmissionMonth(invoice.issueDate());
+                Optional<ResolvedCompanyPath> target = emissionMonth.isPresent()
+                        ? routes.activePathForCustomerTaxIdAndMonth(invoice.customerTaxId(), emissionMonth.get())
+                        : routes.activePathForCustomerTaxId(invoice.customerTaxId());
+                if (target.isPresent() && !target.get().equals(companyPath)) {
+                    return processSingle(workFile, originalSource, target.get(), preserveInput, routes);
                 }
+                String reason = wrongMonth
+                        ? "Caminho REST do mes " + emissionMonth.map(YearMonth::toString).orElse("desconhecido") + " nao configurado na planilha"
+                        : "Tomador nao encontrado com caminho REST ativo no Excel";
                 String fileName = fileNameBuilder.buildMissingCustomerPath(invoice);
                 DestinationResult destination = destinationService.sendToMissingCustomer(workFile, companyPath,
                         fileName, preserveInput);
                 return FileProcessingResult.processed(companyPath.company().id(), originalSource,
-                        ProcessingStatus.WRONG_COMPANY,
-                        "Tomador nao encontrado com caminho REST ativo no Excel",
-                        destination.destination());
+                        ProcessingStatus.WRONG_COMPANY, reason, destination.destination());
             }
             decision = new ProcessingDecisionService(companyPath.company().customerTaxId()).decide(invoice);
             if (decision.status() == ProcessingStatus.OK) {
@@ -280,6 +288,26 @@ public final class InvoiceProcessingPipeline {
         }
         new DuplicateInvoiceIndex(TechnicalPaths.duplicateIndex(routes, companyPath))
                 .record(companyPath.company().id(), fiscalKey, invoice.layout(), destination);
+    }
+
+    private static boolean shouldRerouteByEmissionMonth(InvoiceData invoice, ResolvedCompanyPath companyPath) {
+        if (companyPath.month().isEmpty()) return false;
+        if (TextNormalizer.digitsOnly(invoice.customerTaxId()).isBlank()) return false;
+        return parseEmissionMonth(invoice.issueDate())
+                .map(em -> !em.equals(companyPath.month().get()))
+                .orElse(false);
+    }
+
+    private static Optional<YearMonth> parseEmissionMonth(String issueDate) {
+        if (issueDate == null || issueDate.isBlank()) return Optional.empty();
+        String[] parts = issueDate.split("/");
+        if (parts.length == 3 && parts[2].length() == 4) {
+            try {
+                return Optional.of(YearMonth.of(Integer.parseInt(parts[2]), Integer.parseInt(parts[1])));
+            } catch (NumberFormatException | java.time.DateTimeException ignored) {
+            }
+        }
+        return Optional.empty();
     }
 
     private static boolean isWrongFolder(InvoiceData invoice, ResolvedCompanyPath companyPath) {

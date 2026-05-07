@@ -3,6 +3,7 @@ package br.com.nfse.renomeador.config;
 import br.com.nfse.renomeador.text.TextNormalizer;
 
 import java.nio.file.Path;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -67,6 +68,23 @@ public record CompanyRouteDirectory(
             byTaxId.putIfAbsent(TextNormalizer.digitsOnly(path.company().customerTaxId()), path);
         }
         return Optional.ofNullable(byTaxId.get(digits));
+    }
+
+    public Optional<ResolvedCompanyPath> activePathForCustomerTaxIdAndMonth(String taxId, YearMonth month) {
+        String digits = TextNormalizer.digitsOnly(taxId);
+        if (digits.isBlank()) return Optional.empty();
+        List<ResolvedCompanyPath> matches = activePaths.stream()
+                .filter(p -> !p.company().sourceOnly())
+                .filter(p -> digits.equals(TextNormalizer.digitsOnly(p.company().customerTaxId())))
+                .toList();
+        if (matches.isEmpty()) return Optional.empty();
+        Optional<ResolvedCompanyPath> exactMatch = matches.stream()
+                .filter(p -> p.month().map(month::equals).orElse(false))
+                .findFirst();
+        if (exactMatch.isPresent()) return exactMatch;
+        boolean hasAnyMonthInfo = matches.stream().anyMatch(p -> p.month().isPresent());
+        if (hasAnyMonthInfo) return Optional.empty();
+        return Optional.of(matches.get(0));
     }
 
     public Optional<ResolvedCompanyPath> activePathForCompanyId(String companyId) {

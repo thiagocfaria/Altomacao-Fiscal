@@ -144,9 +144,17 @@ public final class App {
 
         @Override
         public Integer call() throws Exception {
-            int imported = new ExcelCompanyImporter().importToYaml(spreadsheet, output, sheet, overwrite,
-                    Optional.ofNullable(month).filter(value -> !value.isBlank()).map(YearMonth::parse),
-                    java.time.LocalDate.now());
+            ExcelCompanyImporter importer = new ExcelCompanyImporter();
+            int imported;
+            boolean hasSheet = sheet != null && !sheet.isBlank();
+            boolean hasMonth = month != null && !month.isBlank();
+            if (hasSheet || hasMonth) {
+                imported = importer.importToYaml(spreadsheet, output, sheet, overwrite,
+                        Optional.ofNullable(month).filter(value -> !value.isBlank()).map(YearMonth::parse),
+                        java.time.LocalDate.now());
+            } else {
+                imported = importer.importAllMonthsToYaml(spreadsheet, output, overwrite);
+            }
             new CompanyRegistryValidator().validate(new CompanyRegistryLoader().load(output));
             System.out.printf("Empresas importadas=%d%n", imported);
             return 0;
@@ -184,9 +192,13 @@ public final class App {
     }
 
     private static void refreshFromSpreadsheetIfPresent(BaseCommand command) throws Exception {
-        if (command.spreadsheet().isPresent()) {
-            new ExcelCompanyImporter().importToYaml(command.spreadsheet().orElseThrow(), command.config, "", true,
+        if (command.spreadsheet().isEmpty()) return;
+        Path planilha = command.spreadsheet().orElseThrow();
+        if (command.month().isPresent()) {
+            new ExcelCompanyImporter().importToYaml(planilha, command.config, "", true,
                     command.month(), java.time.LocalDate.now());
+        } else {
+            new ExcelCompanyImporter().importAllMonthsToYaml(planilha, command.config, true);
         }
     }
 }
