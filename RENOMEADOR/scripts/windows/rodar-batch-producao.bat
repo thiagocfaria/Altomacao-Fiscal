@@ -34,7 +34,7 @@ java -jar "%JAR%" config check --config "%CONFIG%"
 if errorlevel 1 exit /b %errorlevel%
 
 if "%HOMOLOGACAO%"=="" (
-  java -jar "%JAR%" batch --config "%CONFIG%"
+  java -jar "%JAR%" batch --config "%CONFIG%" --sem-atualizar-planilha
 ) else (
-  java -jar "%JAR%" batch --config "%CONFIG%" --homologacao
+  java -jar "%JAR%" batch --config "%CONFIG%" --homologacao --sem-atualizar-planilha
 )

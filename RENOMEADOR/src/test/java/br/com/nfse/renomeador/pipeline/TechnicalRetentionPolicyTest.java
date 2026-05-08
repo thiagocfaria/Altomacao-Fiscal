@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.YearMonth;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,6 +52,27 @@ class TechnicalRetentionPolicyTest {
         assertThat(currentLog).exists();
         assertThat(olderLog).doesNotExist();
         assertThat(newerLog).exists();
+    }
+
+    @Test
+    void removesOldSplitWorkAndWritesReviewReport() throws Exception {
+        Path companyBackend = tempDir.resolve("empresas").resolve("empresa_a");
+        Path oldSplit = Files.createDirectories(companyBackend.resolve("split-work").resolve("run-antigo"));
+        Path currentSplit = Files.createDirectories(companyBackend.resolve("split-work").resolve("run-atual"));
+        Files.writeString(oldSplit.resolve("parte.pdf"), "old");
+        Files.writeString(currentSplit.resolve("parte.pdf"), "current");
+        Files.setLastModifiedTime(oldSplit, java.nio.file.attribute.FileTime.from(Instant.now().minusSeconds(40L * 24L * 60L * 60L)));
+        Files.setLastModifiedTime(oldSplit.resolve("parte.pdf"), java.nio.file.attribute.FileTime.from(Instant.now().minusSeconds(40L * 24L * 60L * 60L)));
+        Path review = Files.createDirectories(companyBackend.resolve("revisar"));
+        Files.writeString(review.resolve("pendente.pdf"), "pdf");
+
+        new TechnicalRetentionPolicy(12, 1_000_000L, 30).applyCompanyBackend(companyBackend);
+
+        assertThat(oldSplit).doesNotExist();
+        assertThat(currentSplit).exists();
+        assertThat(companyBackend.resolve("relatorio-revisar.tsv"))
+                .content()
+                .contains("pendente.pdf");
     }
 
     private Path logFile(YearMonth month, String suffix) {

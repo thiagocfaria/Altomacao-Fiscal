@@ -1,5 +1,7 @@
 package br.com.nfse.renomeador.ledger;
 
+import br.com.nfse.renomeador.text.TsvCodec;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -90,10 +92,22 @@ public final class ProcessingLedger {
             return List.of();
         }
         List<LedgerEntry> entries = new ArrayList<>();
+        List<String> validLines = new ArrayList<>();
+        boolean foundCorruptedLine = false;
         for (String line : Files.readAllLines(ledgerFile, StandardCharsets.UTF_8)) {
             if (!line.isBlank()) {
-                entries.add(deserialize(line));
+                try {
+                    entries.add(deserialize(line));
+                    validLines.add(line);
+                } catch (RuntimeException exception) {
+                    recordCorruptedLine(line, exception);
+                    foundCorruptedLine = true;
+                }
             }
+        }
+        if (foundCorruptedLine) {
+            Files.write(ledgerFile, validLines, StandardCharsets.UTF_8,
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
         }
         return entries;
     }
@@ -112,7 +126,7 @@ public final class ProcessingLedger {
     }
 
     private static String serialize(LedgerEntry entry) {
-        return String.join("\t",
+        return TsvCodec.join(
                 entry.companyId(),
                 entry.sourcePath().toString(),
                 Long.toString(entry.size()),
@@ -124,11 +138,8 @@ public final class ProcessingLedger {
         );
     }
 
-    private static LedgerEntry deserialize(String line) {
-        String[] parts = line.split("\t", -1);
-        if (parts.length != 8) {
-            throw new IllegalArgumentException("Linha invalida no ledger: " + line);
-        }
+    private LedgerEntry deserialize(String line) {
+        String[] parts = TsvCodec.split(line, 8);
         return new LedgerEntry(
                 parts[0],
                 Path.of(parts[1]),
@@ -139,5 +150,16 @@ public final class ProcessingLedger {
                 Path.of(parts[6]),
                 Instant.parse(parts[7])
         );
+    }
+
+    private void recordCorruptedLine(String line, RuntimeException exception) throws IOException {
+        Path corrupted = ledgerFile.resolveSibling(ledgerFile.getFileName() + ".corrompidas");
+        if (corrupted.getParent() != null) {
+            Files.createDirectories(corrupted.getParent());
+        }
+        String entry = TsvCodec.join(Instant.now().toString(), exception.getClass().getSimpleName(),
+                exception.getMessage(), line) + System.lineSeparator();
+        Files.writeString(corrupted, entry, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 }

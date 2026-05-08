@@ -1,6 +1,7 @@
 package br.com.nfse.renomeador.ledger;
 
 import br.com.nfse.renomeador.layout.LayoutType;
+import br.com.nfse.renomeador.text.TsvCodec;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -63,10 +64,22 @@ public final class DuplicateInvoiceIndex {
             return loadedEntries;
         }
         List<Entry> entries = new ArrayList<>();
+        List<String> validLines = new ArrayList<>();
+        boolean foundCorruptedLine = false;
         for (String line : Files.readAllLines(indexFile, StandardCharsets.UTF_8)) {
             if (!line.isBlank()) {
-                entries.add(deserialize(line));
+                try {
+                    entries.add(deserialize(line));
+                    validLines.add(line);
+                } catch (RuntimeException exception) {
+                    recordCorruptedLine(line, exception);
+                    foundCorruptedLine = true;
+                }
             }
+        }
+        if (foundCorruptedLine) {
+            Files.write(indexFile, validLines, StandardCharsets.UTF_8,
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
         }
         loadedEntries = List.copyOf(entries);
         return loadedEntries;
@@ -82,7 +95,7 @@ public final class DuplicateInvoiceIndex {
     }
 
     private static String serialize(Entry entry) {
-        return String.join("\t",
+        return TsvCodec.join(
                 entry.companyId(),
                 entry.fiscalKey(),
                 entry.layout().name(),
@@ -91,11 +104,8 @@ public final class DuplicateInvoiceIndex {
         );
     }
 
-    private static Entry deserialize(String line) {
-        String[] parts = line.split("\t", -1);
-        if (parts.length != 5) {
-            throw new IllegalArgumentException("Linha invalida no indice de duplicidade: " + line);
-        }
+    private Entry deserialize(String line) {
+        String[] parts = TsvCodec.split(line, 5);
         return new Entry(
                 parts[0],
                 parts[1],
@@ -103,6 +113,17 @@ public final class DuplicateInvoiceIndex {
                 Path.of(parts[3]),
                 Instant.parse(parts[4])
         );
+    }
+
+    private void recordCorruptedLine(String line, RuntimeException exception) throws IOException {
+        Path corrupted = indexFile.resolveSibling(indexFile.getFileName() + ".corrompidas");
+        if (corrupted.getParent() != null) {
+            Files.createDirectories(corrupted.getParent());
+        }
+        String entry = TsvCodec.join(Instant.now().toString(), exception.getClass().getSimpleName(),
+                exception.getMessage(), line) + System.lineSeparator();
+        Files.writeString(corrupted, entry, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
     public record Entry(String companyId, String fiscalKey, LayoutType layout, Path destination, Instant recordedAt) {

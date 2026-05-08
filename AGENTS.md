@@ -7,7 +7,7 @@ Verdades duraveis da raiz do projeto ALTOMACAO Fiscal.
 1. leia este `AGENTS.md`
 2. leia `SITUACAO_ATUAL.md`
 3. se a tarefa tocar PDFs/NFS-e/renomeacao, leia `RENOMEADOR/AGENTS.md`
-4. depois leia o trecho relevante de `RENOMEADOR/SITUACAO_ATUAL.md` e `RENOMEADOR/ESPECIFICACAO_RENOMEADOR_NFSE.md`
+4. depois leia o trecho relevante de `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md`
 
 ## Matriz de verdade da raiz
 
@@ -17,8 +17,10 @@ Verdades duraveis da raiz do projeto ALTOMACAO Fiscal.
 | `SITUACAO_ATUAL.md` | mapa atual dos modulos e proximos passos gerais |
 | `README.md` | orientacao rapida do projeto |
 | `RENOMEADOR/AGENTS.md` | regras duraveis do modulo de PDFs/NFS-e |
-| `RENOMEADOR/SITUACAO_ATUAL.md` | status operacional do modulo RENOMEADOR |
+| `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md` | documentacao unica operacional e tecnica do modulo RENOMEADOR |
+| `AUDITORIA_RISCOS_RENOMEADOR.md` | auditoria pessimista de falhas possiveis do RENOMEADOR |
 | `docs/operacao/MCP_AVALIACAO.md` | decisoes sobre MCPs e LSPs adotados |
+| `docs/operacao/AMBIENTE_SKILLS_MCP_LSP.md` | como reproduzir skills, MCPs e LSPs em outra maquina |
 
 ## Separacao por modulo
 

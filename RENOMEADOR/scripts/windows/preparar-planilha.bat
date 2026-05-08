@@ -21,3 +21,7 @@ if "%~2"=="" (
 )
 
 java -jar "%JAR%" config preparar-planilha --entrada "%~1" --saida "%~2"
+if errorlevel 1 exit /b %errorlevel%
+
+cscript //nologo "%~dp0corrigir-macro-planilha.vbs" "%~2"
+if errorlevel 1 exit /b %errorlevel%

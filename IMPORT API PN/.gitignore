@@ -1,0 +1,36 @@
+# Certificados e segredos
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+*.senha
+*.secret
+secrets/
+
+# Arquivos fiscais e operacionais importados
+*.xml
+*.pdf
+*.zip
+*.gz
+
+# Backend tecnico local
+backend/ledger/*
+backend/logs/*
+backend/fila/*
+backend/quarentena/*
+backend/health/*
+
+# Config local sensivel
+operacao/config/*.local.*
+
+!.gitignore
+!.gitkeep
+!backend/ledger/.gitkeep
+!backend/logs/.gitkeep
+!backend/fila/.gitkeep
+!backend/quarentena/.gitkeep
+!backend/health/.gitkeep
+!operacao/certificados/.gitkeep
+!operacao/config/.gitkeep

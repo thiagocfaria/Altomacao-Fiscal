@@ -6,7 +6,6 @@ import br.com.nfse.renomeador.processing.ProcessingStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
@@ -16,14 +15,20 @@ public final class DestinationService {
 
     public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
                                   String fileName, boolean preserveInput) throws IOException {
-        return send(source, companyPath, status, fileName, preserveInput, false,
+        return send(source, companyPath, status, fileName, preserveInput, false, DocumentType.PDF,
                 CompanyRouteDirectory.single(companyPath));
     }
 
     public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
                                   String fileName, boolean preserveInput, boolean retained,
                                   CompanyRouteDirectory routes) throws IOException {
-        Path directory = destinationDirectory(companyPath, status, retained, routes);
+        return send(source, companyPath, status, fileName, preserveInput, retained, DocumentType.PDF, routes);
+    }
+
+    public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
+                                  String fileName, boolean preserveInput, boolean retained,
+                                  DocumentType documentType, CompanyRouteDirectory routes) throws IOException {
+        Path directory = destinationDirectory(companyPath, status, retained, documentType, routes);
         Files.createDirectories(directory);
         Path destination = nextAvailable(directory.resolve(fileName));
         if (preserveInput) {
@@ -58,7 +63,12 @@ public final class DestinationService {
 
     public DestinationResult sendToMissingCustomer(Path source, ResolvedCompanyPath companyPath, String fileName,
                                                    boolean preserveInput) throws IOException {
-        Path directory = companyPath.root().resolve(MISSING_CUSTOMER_FOLDER);
+        return sendToMissingCustomer(source, companyPath, fileName, preserveInput, DocumentType.PDF);
+    }
+
+    public DestinationResult sendToMissingCustomer(Path source, ResolvedCompanyPath companyPath, String fileName,
+                                                   boolean preserveInput, DocumentType documentType) throws IOException {
+        Path directory = documentType.folderUnder(companyPath.root()).resolve(MISSING_CUSTOMER_FOLDER);
         return sendToDirectory(source, directory, fileName, preserveInput);
     }
 
@@ -75,10 +85,11 @@ public final class DestinationService {
     }
 
     private static Path destinationDirectory(ResolvedCompanyPath companyPath, ProcessingStatus status,
-                                             boolean retained, CompanyRouteDirectory routes) {
+                                             boolean retained, DocumentType documentType, CompanyRouteDirectory routes) {
+        Path documentRoot = documentType.folderUnder(companyPath.root());
         return switch (status) {
-            case OK -> retained ? companyPath.root().resolve(RETAINED_FOLDER) : PathsForCompany.processed(companyPath);
-            case CANCELLED -> PathsForCompany.cancelled(companyPath);
+            case OK -> retained ? documentRoot.resolve(RETAINED_FOLDER) : documentRoot.resolve(companyPath.company().folders().processed());
+            case CANCELLED -> documentRoot.resolve(companyPath.company().folders().cancelled());
             case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT, DUPLICATE -> TechnicalPaths.review(routes, companyPath);
         };
     }
@@ -102,10 +113,6 @@ public final class DestinationService {
     }
 
     private static void move(Path source, Path destination) throws IOException {
-        try {
-            Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException exception) {
-            Files.move(source, destination);
-        }
+        VerifiedFileMover.move(source, destination);
     }
 }

@@ -7,13 +7,19 @@ Projeto de automacoes fiscais separado por modulos.
 | Caminho | Funcao |
 |---|---|
 | `PLANILHA_FISCAL.xlsm` | cadastro compartilhado de clientes, certificados e caminhos |
-| `RENOMEADOR/` | modulo de renomear, separar e organizar PDFs de NFS-e |
+| `RENOMEADOR/` | modulo de renomear, separar e organizar PDFs/XMLs de NFS-e |
 | `docs/referencias/planilha/` | referencias visuais da planilha compartilhada |
 | `docs/operacao/` | decisoes sobre ferramentas, MCPs e LSPs |
 
 ## RENOMEADOR
 
 O modulo atual de producao fica em `RENOMEADOR/`.
+
+Documentacao unica do modulo:
+
+```text
+RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md
+```
 
 Comandos principais a partir da raiz:
 

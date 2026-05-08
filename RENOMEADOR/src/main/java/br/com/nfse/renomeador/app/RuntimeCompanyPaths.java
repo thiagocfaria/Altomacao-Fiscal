@@ -29,7 +29,9 @@ final class RuntimeCompanyPaths {
     CompanyRouteDirectory loadRoutes(Path config, Optional<String> companyId, Optional<YearMonth> month) throws IOException {
         CompanyRegistry registry = loader.load(config);
         validator.validateBasics(registry);
-        Path backendRoot = backendRootFor(config);
+        Path backendRoot = registry.backendRoot()
+                .map(path -> resolveBackendRoot(config, path))
+                .orElseGet(() -> backendRootFor(config));
         List<ResolvedCompanyPath> allActivePaths = registry.companies().stream()
                 .filter(CompanyConfig::enabled)
                 .flatMap(company -> resolver.resolve(company, month, LocalDate.now()).stream())
@@ -47,5 +49,14 @@ final class RuntimeCompanyPaths {
         Path normalized = config.toAbsolutePath().normalize();
         Path parent = normalized.getParent();
         return (parent == null ? Path.of(".").toAbsolutePath().normalize() : parent).resolve("backend");
+    }
+
+    private static Path resolveBackendRoot(Path config, Path configured) {
+        if (configured.isAbsolute()) {
+            return configured.normalize();
+        }
+        Path parent = config.toAbsolutePath().normalize().getParent();
+        Path base = parent == null ? Path.of(".").toAbsolutePath().normalize() : parent;
+        return base.resolve(configured).normalize();
     }
 }

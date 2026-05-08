@@ -1,5 +1,8 @@
 package br.com.nfse.renomeador.app;
 
+import br.com.nfse.renomeador.config.CompanyRegistry;
+import br.com.nfse.renomeador.config.CompanyRegistryLoader;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
@@ -49,8 +52,34 @@ public final class ApplicationLock implements AutoCloseable {
 
     private static Path lockFileFor(Path config) {
         String normalizedConfig = config.toAbsolutePath().normalize().toString();
-        return Path.of(System.getProperty("java.io.tmpdir"), "renomeador-nfse", "locks",
-                "config-" + sha256Prefix(normalizedConfig) + ".lock");
+        return backendRootFor(config).resolve("locks")
+                .resolve("config-" + sha256Prefix(normalizedConfig) + ".lock");
+    }
+
+    private static Path backendRootFor(Path config) {
+        try {
+            CompanyRegistry registry = new CompanyRegistryLoader().load(config);
+            return registry.backendRoot()
+                    .map(path -> resolveBackendRoot(config, path))
+                    .orElseGet(() -> defaultBackendRoot(config));
+        } catch (IOException exception) {
+            return defaultBackendRoot(config);
+        }
+    }
+
+    private static Path defaultBackendRoot(Path config) {
+        Path normalized = config.toAbsolutePath().normalize();
+        Path parent = normalized.getParent();
+        return (parent == null ? Path.of(".").toAbsolutePath().normalize() : parent).resolve("backend");
+    }
+
+    private static Path resolveBackendRoot(Path config, Path configured) {
+        if (configured.isAbsolute()) {
+            return configured.normalize();
+        }
+        Path parent = config.toAbsolutePath().normalize().getParent();
+        Path base = parent == null ? Path.of(".").toAbsolutePath().normalize() : parent;
+        return base.resolve(configured).normalize();
     }
 
     private static IllegalStateException alreadyRunning(Path config, Exception cause) {

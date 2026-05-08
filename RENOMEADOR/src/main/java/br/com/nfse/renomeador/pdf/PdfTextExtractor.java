@@ -10,6 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class PdfTextExtractor {
+    public int countPages(Path pdf) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf.toFile())) {
+            return document.getNumberOfPages();
+        }
+    }
+
     public String extractText(Path pdf) throws IOException {
         try (PDDocument document = Loader.loadPDF(pdf.toFile())) {
             PDFTextStripper stripper = newStripper();

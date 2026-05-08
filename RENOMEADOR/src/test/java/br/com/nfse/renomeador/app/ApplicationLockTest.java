@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ApplicationLockTest {
@@ -49,6 +50,21 @@ class ApplicationLockTest {
              ApplicationLock ignoredSecond = ApplicationLock.acquire(second)) {
             assertThatCode(() -> {
             }).doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    void storesLockUnderConfiguredBackendRoot() throws Exception {
+        Path backend = tempDir.resolve("backend-oficial");
+        Path config = tempDir.resolve("empresas.yaml");
+        Files.writeString(config, """
+                backendRoot: "%s"
+                empresas: []
+                """.formatted(backend.toString().replace("\\", "/")));
+
+        try (ApplicationLock ignored = ApplicationLock.acquire(config)) {
+            assertThat(backend.resolve("locks")).isDirectoryContaining(path ->
+                    path.getFileName().toString().endsWith(".lock"));
         }
     }
 

@@ -18,7 +18,7 @@ public final class InputScanner {
             }
             try (var stream = Files.list(inputDirectory)) {
                 stream.filter(Files::isRegularFile)
-                        .filter(InputScanner::isPdf)
+                        .filter(InputScanner::isSupportedDocument)
                         .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                         .map(path -> new InputCandidate(companyPath, path))
                         .forEach(candidates::add);
@@ -27,7 +27,8 @@ public final class InputScanner {
         return List.copyOf(candidates);
     }
 
-    private static boolean isPdf(Path path) {
-        return path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf");
+    private static boolean isSupportedDocument(Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return fileName.endsWith(".pdf") || fileName.endsWith(".xml");
     }
 }

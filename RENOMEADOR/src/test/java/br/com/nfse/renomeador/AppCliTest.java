@@ -48,6 +48,13 @@ class AppCliTest {
     }
 
     @Test
+    void cliParsesMaintenanceCleanupHelp() {
+        int exitCode = new CommandLine(new App.Cli()).execute("manutencao", "limpar-tecnicos", "--help");
+
+        assertThat(exitCode).isZero();
+    }
+
+    @Test
     void batchFindsSharedSpreadsheetAtProjectRootWhenConfigIsInModuleOperationFolder(@TempDir Path tempDir)
             throws Exception {
         Path moduleOperation = tempDir.resolve("RENOMEADOR").resolve("operacao");
@@ -58,6 +65,19 @@ class AppCliTest {
         command.config = moduleOperation.resolve("empresas.yaml");
 
         assertThat(command.spreadsheet()).contains(spreadsheet);
+    }
+
+    @Test
+    void batchCanUseAlreadyValidatedYamlWithoutRefreshingSpreadsheet(@TempDir Path tempDir)
+            throws Exception {
+        Path moduleOperation = tempDir.resolve("RENOMEADOR").resolve("operacao");
+        Files.createDirectories(moduleOperation);
+        Files.writeString(tempDir.resolve("PLANILHA_FISCAL.xlsm"), "placeholder");
+        App.BatchCommand command = new App.BatchCommand();
+        command.config = moduleOperation.resolve("empresas.yaml");
+        command.skipSpreadsheetRefresh = true;
+
+        assertThat(command.spreadsheet()).isEmpty();
     }
 
     @Test

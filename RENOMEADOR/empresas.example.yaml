@@ -1,3 +1,5 @@
+backendRoot: "D:/Empresas/RENOMEADOR/backend"
+
 empresas:
   - id: empresa_piloto
     habilitada: true

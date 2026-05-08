@@ -135,6 +135,41 @@ class CompanyRegistryValidatorTest {
                 .hasMessageContaining("pasta de saida coincide");
     }
 
+    @Test
+    void rejectsFolderThatEscapesCompanyRoot() throws Exception {
+        Files.createDirectories(tempDir.resolve("entrada"));
+        CompanyRegistry registry = new CompanyRegistry(List.of(new CompanyConfig(
+                "empresa_a",
+                true,
+                "25.014.360/0001-73",
+                MonthStrategy.DIRECT,
+                List.of(),
+                tempDir,
+                "{AAAA}/{MM}",
+                new CompanyFolders("entrada", "../fora", "revisar", "originais", "logs",
+                        "canceladas", "logs/processados.idx")
+        )));
+
+        assertThatThrownBy(() -> new CompanyRegistryValidator().validate(registry))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("caminho inseguro")
+                .hasMessageContaining("processados");
+    }
+
+    @Test
+    void rejectsBackendRootInsideCompanyRestFolder() throws Exception {
+        Files.createDirectories(tempDir);
+        CompanyRegistry registry = new CompanyRegistry(
+                List.of(company("empresa_a", tempDir, ".")),
+                Optional.of(tempDir.resolve("backend"))
+        );
+
+        assertThatThrownBy(() -> new CompanyRegistryValidator().validate(registry))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("backendRoot")
+                .hasMessageContaining("REST");
+    }
+
     private static CompanyConfig company(String id, Path basePath, String inputFolder) {
         return company(id, basePath, inputFolder, "25.014.360/0001-73");
     }

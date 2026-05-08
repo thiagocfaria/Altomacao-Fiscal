@@ -24,7 +24,7 @@ class WatchModeRunnerTest {
         Path sourceRoot = tempDir.resolve("origem_generica");
         Path targetRoot = tempDir.resolve("empresa_correta");
         Files.createDirectories(sourceRoot.resolve("entrada"));
-        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
+        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("PDF").resolve("TOMADOR NAO ENCONTRADO"));
         Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
         Path config = tempDir.resolve("empresas.yaml");
         writeWatchConfig(config, sourceRoot, targetRoot, false);
@@ -48,13 +48,13 @@ class WatchModeRunnerTest {
         Files.createDirectories(targetRoot.resolve("entrada"));
         writeWatchConfig(config, sourceRoot, targetRoot, true);
 
-        await(() -> Files.isDirectory(targetRoot.resolve("processados"))
-                && !Files.exists(sourceRoot.resolve("TOMADOR NAO ENCONTRADO")));
+        await(() -> Files.isDirectory(targetRoot.resolve("PDF").resolve("processados"))
+                && !Files.exists(sourceRoot.resolve("PDF").resolve("TOMADOR NAO ENCONTRADO")));
         watcher.interrupt();
         watcher.join(3_000);
 
         assertThat(failure.get()).isNull();
-        assertThat(targetRoot.resolve("processados")).isDirectoryContaining(path ->
+        assertThat(targetRoot.resolve("PDF").resolve("processados")).isDirectoryContaining(path ->
                 path.getFileName().toString().startsWith("NFSE_9_"));
     }
 
@@ -63,7 +63,7 @@ class WatchModeRunnerTest {
         Path sourceRoot = tempDir.resolve("origem_generica");
         Path targetRoot = tempDir.resolve("empresa_correta");
         Files.createDirectories(sourceRoot.resolve("entrada"));
-        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("TOMADOR NAO ENCONTRADO"));
+        Path pendingFolder = Files.createDirectories(sourceRoot.resolve("PDF").resolve("TOMADOR NAO ENCONTRADO"));
         Files.copy(samplePdf("NF 9 OK.pdf"), pendingFolder.resolve("pendente.pdf"));
         Path spreadsheet = tempDir.resolve("PLANILHA_FISCAL.xlsx");
         Path config = tempDir.resolve("empresas.yaml");
@@ -88,15 +88,56 @@ class WatchModeRunnerTest {
         Files.createDirectories(targetRoot.resolve("entrada"));
         writeSpreadsheet(spreadsheet, sourceRoot, targetRoot, true);
 
-        await(() -> Files.isDirectory(targetRoot.resolve("processados"))
-                && !Files.exists(sourceRoot.resolve("TOMADOR NAO ENCONTRADO")));
+        await(() -> Files.isDirectory(targetRoot.resolve("PDF").resolve("processados"))
+                && !Files.exists(sourceRoot.resolve("PDF").resolve("TOMADOR NAO ENCONTRADO")));
         watcher.interrupt();
         watcher.join(3_000);
 
         assertThat(failure.get()).isNull();
         assertThat(Files.readString(config)).contains(targetRoot.toString().replace("\\", "/"));
-        assertThat(targetRoot.resolve("processados")).isDirectoryContaining(path ->
+        assertThat(targetRoot.resolve("PDF").resolve("processados")).isDirectoryContaining(path ->
                 path.getFileName().toString().startsWith("NFSE_9_"));
+    }
+
+    @Test
+    void watchWritesHealthStatusFileWhenRunning() throws Exception {
+        Path sourceRoot = tempDir.resolve("empresa_piloto");
+        Files.createDirectories(sourceRoot.resolve("entrada"));
+        Path config = tempDir.resolve("empresas.yaml");
+        Files.writeString(config, """
+                empresas:
+                  - id: empresa_piloto
+                    habilitada: true
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      canceladas: "canceladas"
+                """.formatted(sourceRoot.toString().replace("\\", "/")));
+
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread watcher = new Thread(() -> {
+            try {
+                new WatchModeRunner().run(config, Optional.empty(), Optional.empty(), true);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            }
+        });
+        watcher.setDaemon(true);
+        watcher.start();
+
+        Path health = tempDir.resolve("backend").resolve("health").resolve("watch-status.json");
+        await(() -> Files.isRegularFile(health)
+                && Files.readString(health).contains("\"status\":\"OK\"")
+                && Files.readString(health).contains("\"pastasMonitoradas\":1"));
+        watcher.interrupt();
+        watcher.join(3_000);
+
+        assertThat(failure.get()).isNull();
     }
 
     private static void await(CheckedBoolean condition) throws Exception {

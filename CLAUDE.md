@@ -8,7 +8,8 @@ Em sessao nova:
 
 1. leia `AGENTS.md`
 2. leia `SITUACAO_ATUAL.md`
-3. se a tarefa tocar PDFs/NFS-e/renomeacao, leia os documentos em `RENOMEADOR/`
+3. se a tarefa tocar PDFs/NFS-e/renomeacao, leia `RENOMEADOR/AGENTS.md`
+4. depois leia `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md`
 
 ## Separacao
 

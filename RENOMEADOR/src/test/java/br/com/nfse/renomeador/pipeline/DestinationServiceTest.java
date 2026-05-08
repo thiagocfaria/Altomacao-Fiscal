@@ -2,6 +2,7 @@ package br.com.nfse.renomeador.pipeline;
 
 import br.com.nfse.renomeador.config.CompanyConfig;
 import br.com.nfse.renomeador.config.CompanyFolders;
+import br.com.nfse.renomeador.config.CompanyRouteDirectory;
 import br.com.nfse.renomeador.config.MonthStrategy;
 import br.com.nfse.renomeador.config.ResolvedCompanyPath;
 import br.com.nfse.renomeador.processing.ProcessingStatus;
@@ -26,7 +27,7 @@ class DestinationServiceTest {
         DestinationResult result = new DestinationService().send(source, companyPath(), ProcessingStatus.OK,
                 "NFSE_1.pdf", false);
 
-        assertThat(result.destination()).isEqualTo(tempDir.resolve("processados").resolve("NFSE_1.pdf"));
+        assertThat(result.destination()).isEqualTo(tempDir.resolve("PDF").resolve("processados").resolve("NFSE_1.pdf"));
         assertThat(result.destination()).exists();
         assertThat(source).doesNotExist();
     }
@@ -38,9 +39,21 @@ class DestinationServiceTest {
         DestinationResult result = new DestinationService().send(source, companyPath(), ProcessingStatus.CANCELLED,
                 "NFSE_1_##CANCELADA##.pdf", true);
 
-        assertThat(result.destination()).isEqualTo(tempDir.resolve("revisar").resolve("canceladas").resolve("NFSE_1_##CANCELADA##.pdf"));
+        assertThat(result.destination()).isEqualTo(tempDir.resolve("PDF").resolve("revisar").resolve("canceladas").resolve("NFSE_1_##CANCELADA##.pdf"));
         assertThat(result.destination()).exists();
         assertThat(source).exists();
+    }
+
+    @Test
+    void sendsXmlOkToXmlProcessedFolder() throws Exception {
+        Path source = source("nota.xml");
+
+        DestinationResult result = new DestinationService().send(source, companyPath(), ProcessingStatus.OK,
+                "NFSE_1.xml", false, false, DocumentType.XML, CompanyRouteDirectory.single(companyPath()));
+
+        assertThat(result.destination()).isEqualTo(tempDir.resolve("XML").resolve("processados").resolve("NFSE_1.xml"));
+        assertThat(result.destination()).exists();
+        assertThat(source).doesNotExist();
     }
 
     @Test

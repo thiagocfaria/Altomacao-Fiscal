@@ -46,6 +46,17 @@ public final class ProcessingSummary {
         return byStatus.getOrDefault(status, 0);
     }
 
+    public int reviewCount() {
+        return count(ProcessingStatus.UNSUPPORTED)
+                + count(ProcessingStatus.WRONG_COMPANY)
+                + count(ProcessingStatus.MISSING_REQUIRED)
+                + count(ProcessingStatus.RETENTION_CONFLICT);
+    }
+
+    public boolean needsAttention() {
+        return reviewCount() > 0 || errors > 0 || skipped > 0;
+    }
+
     public int repaired() {
         return repaired;
     }

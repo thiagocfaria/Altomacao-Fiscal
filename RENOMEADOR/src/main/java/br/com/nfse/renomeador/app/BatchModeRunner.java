@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class BatchModeRunner {
     private static final long FILE_TIMEOUT_SECONDS = 60L;
     private static final long MIN_FREE_SPACE_BYTES = 500L * 1024L * 1024L;
+    private static final int MAX_PROCESSING_THREADS = 2;
 
     private final RuntimeCompanyPaths companyPaths;
     private final InputScanner scanner;
@@ -61,7 +62,8 @@ public final class BatchModeRunner {
         List<br.com.nfse.renomeador.pipeline.InputCandidate> candidates = scanner.scan(paths);
         Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath = new HashMap<>();
         ProcessingSummary overall = new ProcessingSummary();
-        ExecutorService timeoutExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("nfse-timeout"));
+        ExecutorService timeoutExecutor = Executors.newFixedThreadPool(MAX_PROCESSING_THREADS,
+                new NamedThreadFactory("nfse-timeout"));
 
         try {
             for (ResolvedCompanyPath path : paths) {

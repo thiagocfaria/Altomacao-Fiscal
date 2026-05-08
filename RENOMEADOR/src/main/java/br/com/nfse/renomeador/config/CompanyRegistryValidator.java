@@ -18,6 +18,7 @@ public final class CompanyRegistryValidator {
     public void validate(CompanyRegistry registry) {
         validateBasics(registry);
         validateResolvedPaths(resolveWithoutExternalParameters(registry));
+        validateBackendRoot(registry);
     }
 
     public void validateBasics(CompanyRegistry registry) {
@@ -57,6 +58,7 @@ public final class CompanyRegistryValidator {
     }
 
     private static void validateResolvedPath(ResolvedCompanyPath companyPath, Map<Path, String> inputFolders) {
+        validateSafeRelativeFolders(companyPath.company());
         Path input = normalized(companyPath.root().resolve(companyPath.company().folders().input()));
         validateOutputIsNotInput(companyPath, input, companyPath.company().folders().processed());
         validateOutputIsNotInput(companyPath, input, companyPath.company().folders().review());
@@ -79,6 +81,39 @@ public final class CompanyRegistryValidator {
         if (input.equals(output)) {
             throw new IllegalArgumentException("pasta de saida coincide com entrada para empresa "
                     + companyPath.company().id() + ": " + outputFolder);
+        }
+    }
+
+    private static void validateSafeRelativeFolders(CompanyConfig company) {
+        validateSafeRelativeFolder(company, "entrada", company.folders().input());
+        validateSafeRelativeFolder(company, "processados", company.folders().processed());
+        validateSafeRelativeFolder(company, "revisar", company.folders().review());
+        validateSafeRelativeFolder(company, "originais", company.folders().originals());
+        validateSafeRelativeFolder(company, "logs", company.folders().logs());
+        validateSafeRelativeFolder(company, "canceladas", company.folders().cancelled());
+        validateSafeRelativeFolder(company, "ledger", company.folders().ledger());
+    }
+
+    private static void validateSafeRelativeFolder(CompanyConfig company, String field, String value) {
+        Path path = Path.of(value == null ? "" : value);
+        if (!path.isAbsolute() && normalized(company.basePath().resolve(path)).startsWith(normalized(company.basePath()))) {
+            return;
+        }
+        throw new IllegalArgumentException("caminho inseguro em " + field + " para empresa "
+                + company.id() + ": " + value);
+    }
+
+    private static void validateBackendRoot(CompanyRegistry registry) {
+        if (registry.backendRoot().isEmpty()) {
+            return;
+        }
+        Path backendRoot = normalized(registry.backendRoot().orElseThrow());
+        for (CompanyConfig company : registry.companies()) {
+            Path restRoot = normalized(company.basePath());
+            if (backendRoot.equals(restRoot) || backendRoot.startsWith(restRoot)) {
+                throw new IllegalArgumentException("backendRoot nao pode ficar dentro da REST da empresa "
+                        + company.id() + ": " + backendRoot);
+            }
         }
     }
 

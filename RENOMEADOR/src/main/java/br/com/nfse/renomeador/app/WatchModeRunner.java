@@ -6,6 +6,7 @@ import br.com.nfse.renomeador.config.excel.ExcelCompanyImporter;
 import br.com.nfse.renomeador.pipeline.InputScanner;
 import br.com.nfse.renomeador.pipeline.InvoiceProcessingPipeline;
 import br.com.nfse.renomeador.pipeline.ProcessingLogger;
+import br.com.nfse.renomeador.pipeline.ProcessingSummary;
 
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -17,6 +18,8 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.HashMap;
@@ -28,10 +31,13 @@ import java.util.concurrent.TimeUnit;
 public final class WatchModeRunner {
     private static final long CONFIG_RELOAD_POLL_MILLIS = 500L;
     private static final FileTime NO_SPREADSHEET = FileTime.fromMillis(-1L);
+    private static final Duration HEALTH_INTERVAL = Duration.ofSeconds(60);
+    private static final Duration FULL_SCAN_INTERVAL = Duration.ofMinutes(10);
 
     private final RuntimeCompanyPaths companyPaths;
     private final WatchFolderProcessor processor;
     private final ExcelCompanyImporter excelImporter;
+    private final WatchHealthReporter healthReporter;
 
     public WatchModeRunner() {
         this(new RuntimeCompanyPaths(), new WatchFolderProcessor());
@@ -50,6 +56,7 @@ public final class WatchModeRunner {
         this.companyPaths = companyPaths;
         this.processor = processor;
         this.excelImporter = excelImporter;
+        this.healthReporter = new WatchHealthReporter();
     }
 
     public void run(Path config, Optional<String> companyId, Optional<YearMonth> month,
@@ -65,17 +72,33 @@ public final class WatchModeRunner {
             if (state.byKey().isEmpty()) {
                 return;
             }
-            processor.processExisting(state.routes(), homologation);
+            healthReporter.record(state.routes(), new ProcessingSummary(), "watch iniciado");
+            ProcessingSummary startupSummary = processor.processExisting(state.routes(), homologation);
+            healthReporter.record(state.routes(), startupSummary, "varredura inicial concluida");
+            Instant lastHealth = Instant.now();
+            Instant lastFullScan = Instant.now();
             while (!Thread.currentThread().isInterrupted()) {
                 state = reloadIfConfigChanged(config, companyId, month, homologation, spreadsheet, watchService, state);
+                Instant now = Instant.now();
+                if (Duration.between(lastFullScan, now).compareTo(FULL_SCAN_INTERVAL) >= 0) {
+                    ProcessingSummary scanSummary = processor.processExisting(state.routes(), homologation);
+                    healthReporter.record(state.routes(), scanSummary, "varredura periodica concluida");
+                    lastFullScan = now;
+                    lastHealth = now;
+                } else if (Duration.between(lastHealth, now).compareTo(HEALTH_INTERVAL) >= 0) {
+                    healthReporter.record(state.routes(), new ProcessingSummary(), "watch vivo");
+                    lastHealth = now;
+                }
                 WatchKey key = watchService.poll(CONFIG_RELOAD_POLL_MILLIS, TimeUnit.MILLISECONDS);
                 if (key == null) {
                     continue;
                 }
                 ResolvedCompanyPath companyPath = state.byKey().get(key);
                 if (companyPath != null) {
-                    processor.processEvents((Path) key.watchable(), companyPath, key.pollEvents(),
+                    ProcessingSummary eventSummary = processor.processEvents((Path) key.watchable(), companyPath, key.pollEvents(),
                             homologation, state.routes());
+                    healthReporter.record(state.routes(), eventSummary, "evento processado");
+                    lastHealth = Instant.now();
                 }
                 if (!key.reset()) {
                     state.byKey().remove(key);
@@ -104,7 +127,8 @@ public final class WatchModeRunner {
         refreshFromSpreadsheet(config, spreadsheet, month);
         cancel(current.byKey());
         WatchState reloaded = loadState(config, companyId, month, spreadsheet, watchService);
-        processor.processExisting(reloaded.routes(), homologation);
+        ProcessingSummary summary = processor.processExisting(reloaded.routes(), homologation);
+        healthReporter.record(reloaded.routes(), summary, "configuracao recarregada");
         return reloaded;
     }
 

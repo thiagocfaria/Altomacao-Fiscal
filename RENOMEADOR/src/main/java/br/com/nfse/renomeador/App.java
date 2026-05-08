@@ -8,6 +8,7 @@ import br.com.nfse.renomeador.config.CompanyRegistryValidator;
 import br.com.nfse.renomeador.config.excel.ExcelCompanyImporter;
 import br.com.nfse.renomeador.config.excel.ExcelWorkbookPreparer;
 import br.com.nfse.renomeador.pipeline.ProcessingSummary;
+import br.com.nfse.renomeador.pipeline.TechnicalRetentionPolicy;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -47,8 +48,8 @@ public final class App {
             name = "renomeador-nfse",
             mixinStandardHelpOptions = true,
             version = "0.1.0-SNAPSHOT",
-            description = "Renomeador operacional de PDFs de NFS-e.",
-            subcommands = {BatchCommand.class, WatchCommand.class, ConfigCommand.class}
+            description = "Renomeador operacional de PDFs/XMLs de NFS-e.",
+            subcommands = {BatchCommand.class, WatchCommand.class, ConfigCommand.class, MaintenanceCommand.class}
     )
     public static final class Cli implements Runnable {
         @Override
@@ -67,11 +68,14 @@ public final class App {
         @Option(names = "--mes", description = "Mes no formato AAAA-MM para estrategia informado.")
         String month;
 
-        @Option(names = "--homologacao", description = "Preserva os PDFs de entrada.")
+        @Option(names = "--homologacao", description = "Preserva os PDFs/XMLs de entrada.")
         boolean homologation;
 
         @Option(names = "--planilha", description = "Planilha Excel usada para atualizar o empresas.yaml antes da execucao.")
         Path spreadsheet;
+
+        @Option(names = "--sem-atualizar-planilha", description = "Usa o empresas.yaml existente sem procurar/importar PLANILHA_FISCAL.xlsm automaticamente.")
+        boolean skipSpreadsheetRefresh;
 
         Optional<String> companyId() {
             return Optional.ofNullable(companyId).filter(value -> !value.isBlank());
@@ -82,6 +86,9 @@ public final class App {
         }
 
         Optional<Path> spreadsheet() {
+            if (skipSpreadsheetRefresh) {
+                return Optional.empty();
+            }
             if (spreadsheet != null) {
                 return Optional.of(spreadsheet);
             }
@@ -139,6 +146,29 @@ public final class App {
         @Override
         public void run() {
             CommandLine.usage(this, System.out);
+        }
+    }
+
+    @Command(name = "manutencao", mixinStandardHelpOptions = true, description = "Rotinas tecnicas de manutencao.",
+            subcommands = {CleanupTechnicalCommand.class})
+    public static final class MaintenanceCommand implements Runnable {
+        @Override
+        public void run() {
+            CommandLine.usage(this, System.out);
+        }
+    }
+
+    @Command(name = "limpar-tecnicos", mixinStandardHelpOptions = true,
+            description = "Compacta logs antigos, limpa split-work antigo e gera relatorio de revisar.")
+    public static final class CleanupTechnicalCommand implements Callable<Integer> {
+        @Option(names = "--backend", required = true, description = "Pasta backend tecnica do RENOMEADOR.")
+        Path backend;
+
+        @Override
+        public Integer call() throws Exception {
+            new TechnicalRetentionPolicy().applyBackendRoot(backend);
+            System.out.printf("Manutencao tecnica aplicada em %s%n", backend);
+            return 0;
         }
     }
 

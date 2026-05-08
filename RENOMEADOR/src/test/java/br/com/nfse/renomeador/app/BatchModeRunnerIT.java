@@ -25,7 +25,7 @@ class BatchModeRunnerIT {
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
 
         assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
-        assertThat(tempDir.resolve("processados"))
+        assertThat(tempDir.resolve("PDF").resolve("processados"))
                 .isDirectoryContaining(path -> path.getFileName().toString()
                         .equals("NFSE_9_63.216.712_ERNANE_FLAUZINO_CAMPOS_02.04.2026_140,00.pdf"));
         Path backendCompany = tempDir.resolve("backend").resolve("empresas").resolve("empresa_piloto");

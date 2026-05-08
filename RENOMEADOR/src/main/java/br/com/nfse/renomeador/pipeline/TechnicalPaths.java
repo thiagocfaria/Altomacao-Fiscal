@@ -21,11 +21,11 @@ final class TechnicalPaths {
     }
 
     static Path ledger(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
-        return companyRoot(routes, companyPath).resolve("processados.idx");
+        return monthlyCompanyRoot(routes, companyPath, YearMonth.now()).resolve("processados.idx");
     }
 
     static Path duplicateIndex(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
-        return companyRoot(routes, companyPath).resolve("duplicadas.idx");
+        return monthlyCompanyRoot(routes, companyPath, YearMonth.now()).resolve("duplicadas.idx");
     }
 
     static Path splitWork(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath) {
@@ -41,5 +41,10 @@ final class TechnicalPaths {
                 .replaceAll("\\s+", "_")
                 .strip();
         return safe.isBlank() ? "empresa_sem_id" : safe;
+    }
+
+    private static Path monthlyCompanyRoot(CompanyRouteDirectory routes, ResolvedCompanyPath companyPath,
+                                           YearMonth month) {
+        return companyRoot(routes, companyPath).resolve(month.toString());
     }
 }

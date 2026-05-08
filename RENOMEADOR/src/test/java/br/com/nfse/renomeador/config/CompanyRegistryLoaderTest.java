@@ -16,7 +16,9 @@ class CompanyRegistryLoaderTest {
     @Test
     void loadsMultipleCompaniesFromExternalYaml() throws Exception {
         Path yaml = tempDir.resolve("empresas.yaml");
+        Path backend = tempDir.resolve("backend-oficial");
         Files.writeString(yaml, """
+                backendRoot: "%s"
                 empresas:
                   - id: empresa_a
                     habilitada: true
@@ -48,10 +50,11 @@ class CompanyRegistryLoaderTest {
                       logs: "logs"
                       canceladas: "revisar/canceladas"
                       ledger: "logs/processados.idx"
-                """);
+                """.formatted(backend.toString().replace("\\", "/")));
 
         CompanyRegistry registry = new CompanyRegistryLoader().load(yaml);
 
+        assertThat(registry.backendRoot()).contains(backend);
         assertThat(registry.companies()).hasSize(2);
         CompanyConfig company = registry.companyById("empresa_a").orElseThrow();
         assertThat(company.enabled()).isTrue();
@@ -95,5 +98,66 @@ class CompanyRegistryLoaderTest {
         CompanyRegistry registry = new CompanyRegistryLoader().load(yaml);
 
         assertThat(registry.companyById("empresa_a").orElseThrow().enabled()).isTrue();
+    }
+
+    @Test
+    void resolvesRelativeBackendRootFromYamlFolder() throws Exception {
+        Path operation = Files.createDirectories(tempDir.resolve("RENOMEADOR").resolve("operacao"));
+        Path yaml = operation.resolve("empresas.yaml");
+        Files.writeString(yaml, """
+                backendRoot: "backend"
+                empresas:
+                  - id: empresa_a
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s"
+                    pastas:
+                      entrada: "entrada"
+                """.formatted(tempDir.resolve("empresa_a").toString().replace("\\", "/")));
+
+        CompanyRegistry registry = new CompanyRegistryLoader().load(yaml);
+
+        assertThat(registry.backendRoot())
+                .contains(operation.resolve("backend").toAbsolutePath().normalize());
+    }
+
+    @Test
+    void rejectsUnknownCompanyField() throws Exception {
+        Path yaml = tempDir.resolve("empresas.yaml");
+        Files.writeString(yaml, """
+                empresas:
+                  - id: empresa_a
+                    habilitda: false
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "/dados/EmpresaA/NFSe"
+                    pastas:
+                      entrada: "entrada"
+                """);
+
+        assertThatThrownBy(() -> new CompanyRegistryLoader().load(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Campo desconhecido")
+                .hasMessageContaining("habilitda");
+    }
+
+    @Test
+    void rejectsUnknownFolderField() throws Exception {
+        Path yaml = tempDir.resolve("empresas.yaml");
+        Files.writeString(yaml, """
+                empresas:
+                  - id: empresa_a
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "/dados/EmpresaA/NFSe"
+                    pastas:
+                      entrada: "entrada"
+                      procesados: "processados"
+                """);
+
+        assertThatThrownBy(() -> new CompanyRegistryLoader().load(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Campo desconhecido")
+                .hasMessageContaining("procesados");
     }
 }

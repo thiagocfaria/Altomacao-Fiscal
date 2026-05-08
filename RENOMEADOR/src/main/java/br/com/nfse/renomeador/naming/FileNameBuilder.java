@@ -15,30 +15,39 @@ public final class FileNameBuilder {
     private static final Pattern DATE_SEPARATOR = Pattern.compile("[/\\-]");
 
     public String build(InvoiceData invoice, ProcessingStatus status) {
+        return build(invoice, status, ".pdf");
+    }
+
+    public String build(InvoiceData invoice, ProcessingStatus status, String extension) {
         String number = normalizeNumber(invoice.number());
         String date = normalizeDate(invoice.issueDate());
         String provider = sanitize(invoice.providerName().isBlank() ? "DESCONHECIDO" : invoice.providerName());
         String value = normalizeValue(invoice.serviceValue());
+        String suffixExtension = normalizeExtension(extension);
 
         return switch (status) {
-            case CANCELLED -> withProvider("NFSE_" + number + "_", provider, "_" + date + "_##CANCELADA##.pdf");
-            case WRONG_COMPANY -> withProvider("NFSE_" + number + "_CNPJ_INCORRETO_", provider, "_" + date + ".pdf");
-            case UNSUPPORTED -> "NFSE_" + number + "_MODELO_NAO_SUPORTADO_" + date + ".pdf";
-            case MISSING_REQUIRED -> "NFSE_" + number + "_DADOS_AUSENTES_" + date + ".pdf";
-            case RETENTION_CONFLICT -> withProvider("NFSE_" + number + "_RETENCAO_CONFLITANTE_", provider, "_" + date + ".pdf");
-            case DUPLICATE -> withProvider("NFSE_" + number + "_DUPLICADA_", provider, "_" + date + ".pdf");
+            case CANCELLED -> withProvider("NFSE_" + number + "_", provider, "_" + date + "_##CANCELADA##" + suffixExtension);
+            case WRONG_COMPANY -> withProvider("NFSE_" + number + "_CNPJ_INCORRETO_", provider, "_" + date + suffixExtension);
+            case UNSUPPORTED -> "NFSE_" + number + "_MODELO_NAO_SUPORTADO_" + date + suffixExtension;
+            case MISSING_REQUIRED -> "NFSE_" + number + "_DADOS_AUSENTES_" + date + suffixExtension;
+            case RETENTION_CONFLICT -> withProvider("NFSE_" + number + "_RETENCAO_CONFLITANTE_", provider, "_" + date + suffixExtension);
+            case DUPLICATE -> withProvider("NFSE_" + number + "_DUPLICADA_", provider, "_" + date + suffixExtension);
             case OK -> withProvider("NFSE_" + number + "_", provider, "_" + date + "_" + value
-                    + (invoice.retained() ? "_##IR_RETIDO##" : "") + ".pdf");
+                    + (invoice.retained() ? "_##IR_RETIDO##" : "") + suffixExtension);
         };
     }
 
     public String buildMissingCustomerPath(InvoiceData invoice) {
+        return buildMissingCustomerPath(invoice, ".pdf");
+    }
+
+    public String buildMissingCustomerPath(InvoiceData invoice, String extension) {
         String number = normalizeNumber(invoice.number());
         String customer = sanitize(invoice.customerName().isBlank() ? "TOMADOR_DESCONHECIDO" : invoice.customerName());
         String customerTaxId = digits(invoice.customerTaxId());
         String taxId = customerTaxId.isBlank() ? "CNPJ_DESCONHECIDO" : customerTaxId;
         String value = normalizeValue(invoice.serviceValue());
-        String suffix = "_CNPJ_" + taxId + "_VALOR_" + value + ".pdf";
+        String suffix = "_CNPJ_" + taxId + "_VALOR_" + value + normalizeExtension(extension);
         return withProvider("NFSE_" + number + "_", customer, suffix);
     }
 
@@ -91,5 +100,12 @@ public final class FileNameBuilder {
 
     private static String digits(String value) {
         return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private static String normalizeExtension(String extension) {
+        if (extension == null || extension.isBlank()) {
+            return ".pdf";
+        }
+        return extension.startsWith(".") ? extension : "." + extension;
     }
 }

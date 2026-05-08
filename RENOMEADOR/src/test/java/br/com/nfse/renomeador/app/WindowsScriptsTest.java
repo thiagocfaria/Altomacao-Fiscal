@@ -30,6 +30,42 @@ class WindowsScriptsTest {
                 .contains("renomeador-nfse-0.1.0-SNAPSHOT.jar");
     }
 
+    @Test
+    void prepareSpreadsheetScriptRepairsWorkbookLevelDoubleClickMacro() throws Exception {
+        String prepareScript = Files.readString(SCRIPTS.resolve("preparar-planilha.bat"));
+        String macroRepairScript = Files.readString(SCRIPTS.resolve("corrigir-macro-planilha.vbs"));
+
+        assertThat(prepareScript)
+                .contains("corrigir-macro-planilha.vbs")
+                .contains("cscript //nologo");
+        assertThat(macroRepairScript)
+                .contains("Workbook_SheetBeforeDoubleClick")
+                .contains("Left(UCase(Sh.Name), 9) <> \"\"CADASTRO \"\"")
+                .contains("Target.Column < 17 Or Target.Column > 20")
+                .contains("msoFileDialogFolderPicker");
+    }
+
+    @Test
+    void productionBatchUsesYamlValidatedByScriptWithoutSecondSpreadsheetRefresh() throws Exception {
+        String content = Files.readString(SCRIPTS.resolve("rodar-batch-producao.bat"));
+
+        assertThat(content)
+                .contains("config import-excel")
+                .contains("config check")
+                .contains("--sem-atualizar-planilha");
+    }
+
+    @Test
+    void releaseScriptRunsDependencyTreeVerifyPackageAndJarHelp() throws Exception {
+        String content = Files.readString(SCRIPTS.resolve("verificar-release.bat"));
+
+        assertThat(content)
+                .contains("dependency:tree")
+                .contains("verify -Pintegration")
+                .contains("package")
+                .contains("java -jar \"%JAR%\" --help");
+    }
+
     private static String[] operationalScripts() {
         return new String[]{
                 "preparar-planilha.bat",

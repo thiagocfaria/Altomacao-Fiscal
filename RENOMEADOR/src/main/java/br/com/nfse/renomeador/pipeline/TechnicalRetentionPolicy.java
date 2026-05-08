@@ -13,26 +13,34 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
-final class TechnicalRetentionPolicy {
+public final class TechnicalRetentionPolicy {
     static final int DEFAULT_LOG_RETENTION_MONTHS = 12;
     static final long DEFAULT_MAX_OPERATION_LOG_BYTES_PER_COMPANY = 100L * 1024L * 1024L;
+    static final int DEFAULT_SPLIT_WORK_RETENTION_DAYS = 30;
 
     private static final Pattern OPERATION_LOG_PATTERN =
             Pattern.compile("^execucao-(\\d{4})-(\\d{2})\\.tsv(\\.gz)?$");
 
     private final int retentionMonths;
     private final long maxOperationLogBytesPerCompany;
+    private final int splitWorkRetentionDays;
 
-    TechnicalRetentionPolicy() {
-        this(DEFAULT_LOG_RETENTION_MONTHS, DEFAULT_MAX_OPERATION_LOG_BYTES_PER_COMPANY);
+    public TechnicalRetentionPolicy() {
+        this(DEFAULT_LOG_RETENTION_MONTHS, DEFAULT_MAX_OPERATION_LOG_BYTES_PER_COMPANY,
+                DEFAULT_SPLIT_WORK_RETENTION_DAYS);
     }
 
     TechnicalRetentionPolicy(int retentionMonths, long maxOperationLogBytesPerCompany) {
-        this.retentionMonths = Math.max(1, retentionMonths);
-        this.maxOperationLogBytesPerCompany = Math.max(1L, maxOperationLogBytesPerCompany);
+        this(retentionMonths, maxOperationLogBytesPerCompany, DEFAULT_SPLIT_WORK_RETENTION_DAYS);
     }
 
-    void apply(Path logDirectory) throws IOException {
+    TechnicalRetentionPolicy(int retentionMonths, long maxOperationLogBytesPerCompany, int splitWorkRetentionDays) {
+        this.retentionMonths = Math.max(1, retentionMonths);
+        this.maxOperationLogBytesPerCompany = Math.max(1L, maxOperationLogBytesPerCompany);
+        this.splitWorkRetentionDays = Math.max(1, splitWorkRetentionDays);
+    }
+
+    public void apply(Path logDirectory) throws IOException {
         if (!Files.isDirectory(logDirectory)) {
             return;
         }
@@ -40,6 +48,27 @@ final class TechnicalRetentionPolicy {
         compressClosedMonths(logDirectory, currentMonth);
         deleteExpired(logDirectory, currentMonth);
         enforceSizeCap(logDirectory, currentMonth);
+    }
+
+    public void applyBackendRoot(Path backendRoot) throws IOException {
+        Path companies = backendRoot.resolve("empresas");
+        if (!Files.isDirectory(companies)) {
+            return;
+        }
+        try (var stream = Files.list(companies)) {
+            for (Path companyBackend : stream.filter(Files::isDirectory).toList()) {
+                applyCompanyBackend(companyBackend);
+            }
+        }
+    }
+
+    void applyCompanyBackend(Path companyBackend) throws IOException {
+        if (!Files.isDirectory(companyBackend)) {
+            return;
+        }
+        apply(companyBackend);
+        cleanupOldSplitWork(companyBackend.resolve("split-work"));
+        writeReviewReport(companyBackend);
     }
 
     private void compressClosedMonths(Path logDirectory, YearMonth currentMonth) throws IOException {
@@ -99,6 +128,73 @@ final class TechnicalRetentionPolicy {
                     .flatMap(java.util.Optional::stream)
                     .toList();
         }
+    }
+
+    private void cleanupOldSplitWork(Path splitWork) throws IOException {
+        if (!Files.isDirectory(splitWork)) {
+            return;
+        }
+        java.time.Instant threshold = java.time.Instant.now()
+                .minusSeconds(splitWorkRetentionDays * 24L * 60L * 60L);
+        try (var stream = Files.list(splitWork)) {
+            for (Path entry : stream.toList()) {
+                if (isOlderThan(entry, threshold)) {
+                    deleteRecursively(entry);
+                }
+            }
+        }
+        try (var stream = Files.list(splitWork)) {
+            if (stream.findAny().isEmpty()) {
+                Files.deleteIfExists(splitWork);
+            }
+        }
+    }
+
+    private static boolean isOlderThan(Path path, java.time.Instant threshold) {
+        try {
+            return Files.getLastModifiedTime(path).toInstant().isBefore(threshold);
+        } catch (IOException ignored) {
+            return false;
+        }
+    }
+
+    private static void deleteRecursively(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (var walk = Files.walk(path)) {
+            List<Path> paths = walk.sorted(Comparator.reverseOrder()).toList();
+            for (Path current : paths) {
+                Files.deleteIfExists(current);
+            }
+        }
+    }
+
+    private static void writeReviewReport(Path companyBackend) throws IOException {
+        Path review = companyBackend.resolve("revisar");
+        Path report = companyBackend.resolve("relatorio-revisar.tsv");
+        if (!Files.isDirectory(review)) {
+            Files.deleteIfExists(report);
+            return;
+        }
+        List<Path> files;
+        try (var stream = Files.walk(review)) {
+            files = stream.filter(Files::isRegularFile).sorted().toList();
+        }
+        if (files.isEmpty()) {
+            Files.deleteIfExists(report);
+            return;
+        }
+        StringBuilder content = new StringBuilder("arquivo\ttamanhoBytes\tmodificadoEm")
+                .append(System.lineSeparator());
+        for (Path file : files) {
+            content.append(br.com.nfse.renomeador.text.TsvCodec.join(
+                    review.relativize(file).toString(),
+                    Long.toString(Files.size(file)),
+                    Files.getLastModifiedTime(file).toInstant().toString()
+            )).append(System.lineSeparator());
+        }
+        Files.writeString(report, content.toString());
     }
 
     private static java.util.Optional<LogFile> parseLogFile(Path path) {

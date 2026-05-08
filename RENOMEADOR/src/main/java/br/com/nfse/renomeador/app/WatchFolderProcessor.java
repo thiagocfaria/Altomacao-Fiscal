@@ -30,6 +30,7 @@ final class WatchFolderProcessor {
     private static final int MAX_STABILITY_ATTEMPTS = 5;
     private static final Duration STABILITY_RETRY_DELAY = Duration.ofMillis(250);
     private static final long FILE_TIMEOUT_SECONDS = 60L;
+    private static final int MAX_PROCESSING_THREADS = 2;
 
     private final InputScanner scanner;
     private final InvoiceProcessingPipeline pipeline;
@@ -51,7 +52,8 @@ final class WatchFolderProcessor {
         this.pipeline = pipeline;
         this.logger = logger;
         this.recoveryProcessor = recoveryProcessor;
-        this.timeoutExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("nfse-watch-timeout"));
+        this.timeoutExecutor = Executors.newFixedThreadPool(MAX_PROCESSING_THREADS,
+                new NamedThreadFactory("nfse-watch-timeout"));
     }
 
     ProcessingSummary processExisting(List<ResolvedCompanyPath> paths, boolean homologation) throws IOException {

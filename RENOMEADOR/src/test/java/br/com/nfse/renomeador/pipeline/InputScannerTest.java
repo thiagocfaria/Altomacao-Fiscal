@@ -19,20 +19,23 @@ class InputScannerTest {
     Path tempDir;
 
     @Test
-    void scansOnlyPdfFilesFromConfiguredInputDirectory() throws Exception {
+    void scansPdfAndXmlFilesFromConfiguredInputDirectory() throws Exception {
         ResolvedCompanyPath companyPath = companyPath();
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
         Files.writeString(input.resolve("nota.pdf"), "pdf");
         Files.writeString(input.resolve("outra.PDF"), "pdf");
+        Files.writeString(input.resolve("nota.xml"), "<xml/>");
+        Files.writeString(input.resolve("outra.XML"), "<xml/>");
         Files.writeString(input.resolve("texto.txt"), "txt");
         Files.createDirectories(input.resolve("sub"));
         Files.writeString(input.resolve("sub").resolve("ignorado.pdf"), "pdf");
+        Files.writeString(input.resolve("sub").resolve("ignorado.xml"), "<xml/>");
 
         List<InputCandidate> candidates = new InputScanner().scan(List.of(companyPath));
 
         assertThat(candidates).extracting(candidate -> candidate.source().getFileName().toString())
-                .containsExactly("nota.pdf", "outra.PDF");
+                .containsExactly("nota.pdf", "nota.xml", "outra.PDF", "outra.XML");
     }
 
     @Test

@@ -5,8 +5,7 @@ Verdades duraveis do projeto que valem para Claude, Codex e qualquer agente.
 ## Ordem de leitura em sessao nova
 
 1. leia `AGENTS.md`
-2. leia `SITUACAO_ATUAL.md`
-3. leia o trecho relevante de `ESPECIFICACAO_RENOMEADOR_NFSE.md`
+2. leia `DOCUMENTACAO_RENOMEADOR_NFSE.md`
 4. so depois proponha ou execute qualquer acao
 
 ## Matriz de verdade
@@ -14,17 +13,15 @@ Verdades duraveis do projeto que valem para Claude, Codex e qualquer agente.
 | Documento | O que guarda |
 |---|---|
 | `AGENTS.md` | regras duraveis de arquitetura, implementacao e validacao |
-| `SITUACAO_ATUAL.md` | onde paramos, o que foi feito, qual e o proximo passo |
-| `ESPECIFICACAO_RENOMEADOR_NFSE.md` | plano tecnico completo — fases, criterios de aceite, regras de negocio |
+| `DOCUMENTACAO_RENOMEADOR_NFSE.md` | documentacao unica operacional e tecnica do modulo |
 | `../docs/operacao/MCP_AVALIACAO.md` | decisoes sobre MCPs e LSPs adotados |
-| `docs/FERRAMENTAS_E_SKILLS.md` | catalogo de todas as ferramentas ativas e como uslas |
 
 Regra simples:
 
 ```text
 AGENTS.md nao vira diario.
-SITUACAO_ATUAL.md nao vira copia da arquitetura.
-ESPECIFICACAO_RENOMEADOR_NFSE.md nao vira log de sessao.
+DOCUMENTACAO_RENOMEADOR_NFSE.md e a referencia unica para status, operacao e arquitetura.
+Nao recriar docs de desenvolvimento, planos temporarios ou diarios dentro do modulo.
 ```
 
 ## Arquitetura atual do codigo Java
@@ -139,5 +136,5 @@ nao entra automaticamente neste projeto
 
 Qualquer nova dependencia Maven, MCP ou plugin de Claude so entra apos:
 1. checklist de seguranca em `../docs/operacao/MCP_AVALIACAO.md`
-2. alinhamento com `AGENTS.md` e `ESPECIFICACAO_RENOMEADOR_NFSE.md`
+2. alinhamento com `AGENTS.md` e `DOCUMENTACAO_RENOMEADOR_NFSE.md`
 3. registro da decisao no doc relevante
