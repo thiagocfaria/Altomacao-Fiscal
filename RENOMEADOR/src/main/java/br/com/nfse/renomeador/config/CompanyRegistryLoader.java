@@ -65,12 +65,14 @@ public final class CompanyRegistryLoader {
     private static CompanyConfig toCompany(Map<?, ?> map) {
         rejectUnknownKeys(map, COMPANY_KEYS, "empresa");
         String id = requiredString(map, "id");
-        String customerTaxId = requiredString(map, "cnpjTomador");
+        boolean sourceOnly = booleanValue(map.get("somenteOrigem"));
+        String customerTaxId = sourceOnly
+                ? optionalString(map, "cnpjTomador", "")
+                : requiredString(map, "cnpjTomador");
         MonthStrategy strategy = MonthStrategy.fromConfig(requiredString(map, "estrategiaMes"));
         Path basePath = Path.of(requiredString(map, "pastaBase"));
         String monthSubfolder = optionalString(map, "subpastaMes", "{AAAA}/{MM}");
         boolean enabled = !map.containsKey("habilitada") || booleanValue(map.get("habilitada"));
-        boolean sourceOnly = booleanValue(map.get("somenteOrigem"));
         List<String> months = stringList(map.get("meses"));
         CompanyFolders folders = toFolders(map.get("pastas"));
 

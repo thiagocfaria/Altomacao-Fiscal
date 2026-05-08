@@ -126,9 +126,19 @@ class ExcelWorkbookPreparerTest {
             assertThat(sheet.getRow(1).getCell(21).getStringCellValue())
                     .isEqualTo("SENHA CERTIFICADO DIGITAL\n(OPCIONAL)");
             assertThat(sheet.getRow(1).getCell(22).getStringCellValue()).isEqualTo("SOMENTE ORIGEM");
+            assertThat(sheet.getRow(1).getCell(31).getStringCellValue()).isEqualTo("IMPORT API PN ATIVO");
+            assertThat(sheet.getRow(1).getCell(32).getStringCellValue()).isEqualTo("CERTIFICADO API PN PASTA");
+            assertThat(sheet.getRow(1).getCell(33).getStringCellValue()).isEqualTo("CERTIFICADO API PN ARQUIVO");
+            assertThat(sheet.getRow(1).getCell(34).getStringCellValue()).isEqualTo("CERTIFICADO API PN ALIAS");
+            assertThat(sheet.getRow(1).getCell(35).getStringCellValue()).isEqualTo("VALIDADE CERTIFICADO API PN");
+            assertThat(sheet.getRow(1).getCell(36).getStringCellValue()).isEqualTo("CNPJ RAIZ CERTIFICADO");
+            assertThat(sheet.getRow(1).getCell(37).getStringCellValue()).isEqualTo("MODO API PN");
+            assertThat(sheet.getRow(1).getCell(38).getStringCellValue()).isEqualTo("AMBIENTE API PN");
+            assertThat(sheet.getRow(1).getCell(39).getStringCellValue()).isEqualTo("STATUS API PN");
+            assertThat(sheet.getRow(1).getCell(40).getStringCellValue()).isEqualTo("ULTIMO NSU API PN");
             assertThat(sheet.getPaneInformation().isFreezePane()).isTrue();
             assertThat(sheet.getCTWorksheet().isSetAutoFilter()).isTrue();
-            assertThat(sheet.getCTWorksheet().getAutoFilter().getRef()).isEqualTo("A2:W34");
+            assertThat(sheet.getCTWorksheet().getAutoFilter().getRef()).isEqualTo("A2:AO34");
             assertThat(sheet.getLastRowNum()).isEqualTo(33);
             assertThat(sheet.getRow(1).getCell(17).getCellStyle().getFillPattern())
                     .isEqualTo(FillPatternType.SOLID_FOREGROUND);
@@ -140,12 +150,15 @@ class ExcelWorkbookPreparerTest {
             assertThat(sheet.isColumnHidden(20)).isFalse();
             assertThat(sheet.isColumnHidden(21)).isFalse();
             assertThat(sheet.isColumnHidden(22)).isFalse();
+            assertThat(sheet.isColumnHidden(31)).isFalse();
+            assertThat(sheet.isColumnHidden(40)).isFalse();
             assertThat(sheet.getRow(2).getZeroHeight()).isFalse();
             assertThat(sheet.getRow(3).getZeroHeight()).isFalse();
             assertThat(fillArgb(sheet, 2, 17)).isEqualTo("FFE3FFF4");
             assertThat(sheet.getRow(33).getCell(3).getCellStyle().getDataFormatString()).isEqualTo("@");
             assertThat(sheet.getRow(33).getCell(17).getCellStyle().getDataFormatString()).isEqualTo("@");
             assertThat(sheet.getRow(33).getCell(20).getCellStyle().getDataFormatString()).isEqualTo("dd/mm/yyyy");
+            assertThat(sheet.getRow(33).getCell(35).getCellStyle().getDataFormatString()).isEqualTo("dd/mm/yyyy");
             assertThat(fillArgb(sheet, 2, 3)).isNotEqualTo("FFFFF2B8");
             assertThat(fillArgb(sheet, 3, 3)).isEqualTo("FFFFF2B8");
             assertThat(sheet.getRow(3).getCell(3).getCellComment()).isNotNull();
@@ -160,6 +173,8 @@ class ExcelWorkbookPreparerTest {
             assertThat(sheet.getRow(2).getCell(29).getCellFormula()).contains("RANK(");
             assertThat(sheet.getRow(1).getCell(30).toString()).isBlank();
             assertThat(sheet.getRow(2).getCell(30).toString()).isBlank();
+            assertThat(sheet.getRow(2).getCell(31).toString()).isBlank();
+            assertThat(sheet.getRow(2).getCell(40).toString()).isBlank();
 
             var may = prepared.getSheet("CADASTRO MAIO");
             assertThat(may.getRow(2).getCell(0).getStringCellValue()).isEqualTo("Cliente Valido");
@@ -170,10 +185,14 @@ class ExcelWorkbookPreparerTest {
             assertThat(may.getRow(2).getCell(19).getStringCellValue()).isEqualTo("/certificados/dga.pfx");
             assertThat(may.getRow(2).getCell(22).toString()).isBlank();
             assertThat(may.getRow(2).getCell(30).toString()).isBlank();
+            assertThat(may.getRow(2).getCell(31).toString()).isBlank();
+            assertThat(may.getRow(2).getCell(40).toString()).isBlank();
 
             var config = prepared.getSheet("CONFIG");
             assertThat(config.getRow(0).getCell(0).getStringCellValue()).isEqualTo("CONFIGURACAO VISUAL E VALIDACOES");
             assertThat(config.getRow(2).getCell(0).getStringCellValue()).isEqualTo("SIM");
+            assertThat(config.getRow(2).getCell(1).getStringCellValue())
+                    .isEqualTo("Marca pasta REST monitorada apenas como origem");
             assertThat(config.getRow(9).getCell(0).getStringCellValue()).isEqualTo("NOTAS_IMPORTADAS_HOJE");
             assertThat(config.getRow(9).getCell(1).getNumericCellValue()).isZero();
             assertThat(config.getRow(10).getCell(0).getStringCellValue()).isEqualTo("XML_IMPORTADOS_HOJE");

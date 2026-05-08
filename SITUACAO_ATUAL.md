@@ -25,6 +25,8 @@ Resumo do estado:
 
 - batch, watch e config implementados;
 - planilha mensal multi-aba importada para YAML;
+- planilha preparada inclui colunas do `IMPORT API PN` para certificado por pasta + arquivo + alias;
+- linha tecnica `SOMENTE ORIGEM` sem CNPJ pode ser usada como `IMPORT API PN ENTRADA REST`;
 - roteamento por data de emissao do PDF/XML implementado;
 - macro de duplo clique corrigida para todas as abas `CADASTRO ...`;
 - batch de producao importa/valida uma vez e usa `--sem-atualizar-planilha`;
@@ -38,6 +40,8 @@ Resumo do estado:
 - `backendRoot` no YAML fixa o backend tecnico oficial para logs, indices, painel, healthcheck e lock;
 - PDFs acima de 50MB ou 80 paginas caem em revisao antes de extracao textual pesada;
 - XMLs do Portal Nacional tambem sao lidos, renomeados e enviados para `XML/...` dentro do `CAMINHO REST`;
+- entrada global `entrada-rest` pode ser monitorada como origem tecnica e roteada para o `CAMINHO REST` correto pelo CNPJ/data da nota;
+- `SOMENTE ORIGEM` no RENOMEADOR e origem REST; XML Dominio/DMS fica em fluxo proprio do IMPORT API PN/publicador DMS para `CAMINHO DMS`;
 - batch/watch usam executor limitado para timeout, sem crescimento livre de threads;
 - logs TSV, ledger e indice escapam campos e isolam linhas corrompidas em `.corrompidas`;
 - manutencao tecnica limpa `split-work/`, compacta logs e gera relatorio de `revisar/`;
@@ -48,8 +52,8 @@ Resumo do estado:
 
 Validacao atual:
 
-- `mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR test`: 148 testes, 0 falhas.
-- `mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration`: 148 testes unitarios + 1 teste de integracao, 0 falhas.
+- `mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR test`: 150 testes, 0 falhas.
+- `mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration`: 150 testes unitarios + 1 teste de integracao, 0 falhas.
 
 ## Proximo passo geral
 

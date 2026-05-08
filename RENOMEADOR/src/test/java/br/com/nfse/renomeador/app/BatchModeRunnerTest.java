@@ -763,7 +763,7 @@ class BatchModeRunnerTest {
                   - id: origem_generica
                     habilitada: true
                     somenteOrigem: true
-                    cnpjTomador: "000"
+                    cnpjTomador: ""
                     estrategiaMes: "direto"
                     pastaBase: "%s/origem_generica"
                     pastas:
@@ -800,7 +800,7 @@ class BatchModeRunnerTest {
                   - id: origem_generica
                     habilitada: true
                     somenteOrigem: true
-                    cnpjTomador: "000"
+                    cnpjTomador: ""
                     estrategiaMes: "direto"
                     pastaBase: "%s/origem_generica"
                     pastas:
@@ -853,7 +853,7 @@ class BatchModeRunnerTest {
                   - id: origem_generica
                     habilitada: true
                     somenteOrigem: true
-                    cnpjTomador: "000"
+                    cnpjTomador: ""
                     estrategiaMes: "direto"
                     pastaBase: "%s/origem_generica"
                     pastas:

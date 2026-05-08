@@ -57,7 +57,6 @@ public final class ExcelWorkbookPreparer {
     private static final int CERTIFICATE_EXPIRY_COLUMN = 20;
     private static final int CERTIFICATE_PASSWORD_COLUMN = 21;
     private static final int SOURCE_ONLY_COLUMN = 22;
-    private static final int LAST_OPERATIONAL_COLUMN = 22;
     private static final int CNPJ_STATUS_COLUMN = 23;
     private static final int REST_STATUS_COLUMN = 24;
     private static final int DUPLICATE_STATUS_COLUMN = 25;
@@ -67,6 +66,17 @@ public final class ExcelWorkbookPreparer {
     private static final int CERTIFICATE_RANK_COLUMN = 29;
     private static final int LAST_HELPER_COLUMN = 29;
     private static final int LEGACY_LAST_HELPER_COLUMN = 30;
+    private static final int API_PN_ACTIVE_COLUMN = 31;
+    private static final int API_PN_CERTIFICATE_FOLDER_COLUMN = 32;
+    private static final int API_PN_CERTIFICATE_FILE_COLUMN = 33;
+    private static final int API_PN_CERTIFICATE_ALIAS_COLUMN = 34;
+    private static final int API_PN_CERTIFICATE_EXPIRY_COLUMN = 35;
+    private static final int API_PN_CERTIFICATE_ROOT_CNPJ_COLUMN = 36;
+    private static final int API_PN_MODE_COLUMN = 37;
+    private static final int API_PN_ENVIRONMENT_COLUMN = 38;
+    private static final int API_PN_STATUS_COLUMN = 39;
+    private static final int API_PN_LAST_NSU_COLUMN = 40;
+    private static final int LAST_OPERATIONAL_COLUMN = API_PN_LAST_NSU_COLUMN;
     private static final int LEGACY_ENTRIES_COLUMN = 18;
     private static final int LEGACY_OUTPUTS_COLUMN = 19;
     private static final int LEGACY_CERTIFICATE_PATH_COLUMN = 20;
@@ -210,6 +220,16 @@ public final class ExcelWorkbookPreparer {
         sheet.setColumnWidth(CERTIFICATE_EXPIRY_COLUMN, 18 * 256);
         sheet.setColumnWidth(CERTIFICATE_PASSWORD_COLUMN, 24 * 256);
         sheet.setColumnWidth(SOURCE_ONLY_COLUMN, 18 * 256);
+        sheet.setColumnWidth(API_PN_ACTIVE_COLUMN, 18 * 256);
+        sheet.setColumnWidth(API_PN_CERTIFICATE_FOLDER_COLUMN, 44 * 256);
+        sheet.setColumnWidth(API_PN_CERTIFICATE_FILE_COLUMN, 34 * 256);
+        sheet.setColumnWidth(API_PN_CERTIFICATE_ALIAS_COLUMN, 28 * 256);
+        sheet.setColumnWidth(API_PN_CERTIFICATE_EXPIRY_COLUMN, 18 * 256);
+        sheet.setColumnWidth(API_PN_CERTIFICATE_ROOT_CNPJ_COLUMN, 22 * 256);
+        sheet.setColumnWidth(API_PN_MODE_COLUMN, 24 * 256);
+        sheet.setColumnWidth(API_PN_ENVIRONMENT_COLUMN, 24 * 256);
+        sheet.setColumnWidth(API_PN_STATUS_COLUMN, 28 * 256);
+        sheet.setColumnWidth(API_PN_LAST_NSU_COLUMN, 20 * 256);
         for (int column = CLIENT_COLUMN; column <= LAST_OPERATIONAL_COLUMN; column++) {
             sheet.setColumnHidden(column, false);
         }
@@ -711,7 +731,7 @@ public final class ExcelWorkbookPreparer {
             cell.setCellValue(headers[column]);
             cell.setCellStyle(solidStyle(workbook, "0A2F52", "22D3EE", (short) 10, true));
         }
-        configRow(workbook, sheet, 2, "SIM", "Marca pasta monitorada apenas como origem", "SOMENTE ORIGEM");
+        configRow(workbook, sheet, 2, "SIM", "Marca pasta REST monitorada apenas como origem", "SOMENTE ORIGEM");
         configRow(workbook, sheet, 3, "NAO", "Valor padrao quando a pasta tambem pode ser destino", "SOMENTE ORIGEM");
         configRow(workbook, sheet, 4, "A", "Prioridade herdada do cadastro", "PRIORIDADE");
         configRow(workbook, sheet, 5, "B", "Prioridade herdada do cadastro", "PRIORIDADE");
@@ -1019,6 +1039,17 @@ public final class ExcelWorkbookPreparer {
         sourceOnly.setCellStyle(sourceOnlyStyle);
         sourceOnly.setCellValue("SOMENTE ORIGEM");
 
+        setApiHeader(workbook, header, API_PN_ACTIVE_COLUMN, "IMPORT API PN ATIVO", "166534", IndexedColors.GREEN);
+        setApiHeader(workbook, header, API_PN_CERTIFICATE_FOLDER_COLUMN, "CERTIFICADO API PN PASTA", "0F766E", IndexedColors.TEAL);
+        setApiHeader(workbook, header, API_PN_CERTIFICATE_FILE_COLUMN, "CERTIFICADO API PN ARQUIVO", "0F766E", IndexedColors.TEAL);
+        setApiHeader(workbook, header, API_PN_CERTIFICATE_ALIAS_COLUMN, "CERTIFICADO API PN ALIAS", "0E7490", IndexedColors.TEAL);
+        setApiHeader(workbook, header, API_PN_CERTIFICATE_EXPIRY_COLUMN, "VALIDADE CERTIFICADO API PN", "15803D", IndexedColors.GREEN);
+        setApiHeader(workbook, header, API_PN_CERTIFICATE_ROOT_CNPJ_COLUMN, "CNPJ RAIZ CERTIFICADO", "2563EB", IndexedColors.BLUE);
+        setApiHeader(workbook, header, API_PN_MODE_COLUMN, "MODO API PN", "4338CA", IndexedColors.INDIGO);
+        setApiHeader(workbook, header, API_PN_ENVIRONMENT_COLUMN, "AMBIENTE API PN", "4338CA", IndexedColors.INDIGO);
+        setApiHeader(workbook, header, API_PN_STATUS_COLUMN, "STATUS API PN", "92400E", IndexedColors.BROWN);
+        setApiHeader(workbook, header, API_PN_LAST_NSU_COLUMN, "ULTIMO NSU API PN", "334155", IndexedColors.BLUE_GREY);
+
         header.getCell(CNPJ_STATUS_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("STATUS CNPJ");
         header.getCell(REST_STATUS_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("STATUS REST");
         header.getCell(DUPLICATE_STATUS_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("STATUS DUPLICIDADE");
@@ -1026,6 +1057,16 @@ public final class ExcelWorkbookPreparer {
         header.getCell(CERTIFICATE_DAYS_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("DIAS CERTIFICADO");
         header.getCell(CERTIFICATE_STATUS_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("STATUS CERTIFICADO");
         header.getCell(CERTIFICATE_RANK_COLUMN, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("RANK CERTIFICADO");
+    }
+
+    private static void setApiHeader(Workbook workbook, Row header, int column, String label,
+                                     String fill, IndexedColors fallback) {
+        Cell cell = header.getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+        CellStyle style = workbook.createCellStyle();
+        style.cloneStyleFrom(header.getCell(SOURCE_ONLY_COLUMN).getCellStyle());
+        setFill(style, fill, fallback);
+        cell.setCellStyle(style);
+        cell.setCellValue(label);
     }
 
     private static void styleOperationalRows(Workbook workbook, Sheet sheet, int lastReadyRow) {
@@ -1050,10 +1091,11 @@ public final class ExcelWorkbookPreparer {
 
     private static CellStyle styleFor(int column, Cell cell, RowStyles styles) {
         if (column == DMS_COLUMN || column == REST_COLUMN || column == ENTRY_OUTPUT_COLUMN
-                || column == CERTIFICATE_PATH_COLUMN) {
+                || column == CERTIFICATE_PATH_COLUMN || column == API_PN_CERTIFICATE_FOLDER_COLUMN
+                || column == API_PN_CERTIFICATE_FILE_COLUMN) {
             return cell.toString().isBlank() ? styles.emptyPath() : styles.filledPath();
         }
-        if (column == CERTIFICATE_EXPIRY_COLUMN) {
+        if (column == CERTIFICATE_EXPIRY_COLUMN || column == API_PN_CERTIFICATE_EXPIRY_COLUMN) {
             return styles.date();
         }
         if (column == CLIENT_COLUMN) {

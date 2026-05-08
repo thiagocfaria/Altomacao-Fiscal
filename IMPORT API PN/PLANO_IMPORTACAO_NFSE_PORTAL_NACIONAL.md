@@ -165,7 +165,7 @@ Colunas recomendadas por empresa/aba mensal:
 
 - `IMPORT API PN ATIVO`: SIM/NAO.
 - `CNPJ`: CNPJ da empresa.
-- `CAMINHO REST`: entrada unica e destino operacional compartilhado com o RENOMEADOR.
+- `CAMINHO REST`: destino operacional final da empresa/mes, usado pelo RENOMEADOR.
 - `CAMINHO DMS`: destino DMS, quando aplicavel somente para XML no formato Dominio.
 - `CERTIFICADO API PN PASTA`: pasta onde ficam os certificados `.pfx` ou `.p12`.
 - `CERTIFICADO API PN ARQUIVO`: nome exato do certificado a usar, porque a mesma pasta pode conter varios certificados.
@@ -177,7 +177,17 @@ Colunas recomendadas por empresa/aba mensal:
 - `AMBIENTE API PN`: `PRODUCAO_RESTRITA` ou `PRODUCAO`.
 - `STATUS API PN`: OK, ATENCAO, BLOQUEADO_CERTIFICADO, FALHA_API etc.
 
-Decisao revisada em 08/05/2026: nao criar `CAMINHO XML` nem `CAMINHO ENTRADA API PN` na V1. O importador entrega XML/PDF na raiz do `CAMINHO REST` da empresa/mes, e o RENOMEADOR separa em `PDF/...` e `XML/...`.
+Decisao revisada em 08/05/2026: nao criar `CAMINHO XML` nem `CAMINHO ENTRADA API PN` como coluna nova na V1. A entrada global do IMPORT API PN para REST sera uma linha tecnica da propria planilha, marcada como `SOMENTE ORIGEM = SIM`, sem CNPJ obrigatorio, com `CAMINHO REST` apontando para a pasta unica `entrada-rest`. O RENOMEADOR monitora essa origem tecnica e move cada PDF/XML para o `CAMINHO REST` correto da empresa/mes pela leitura fiscal do arquivo.
+
+Linha tecnica recomendada:
+
+| CLIENTE | CNPJ | CAMINHO REST | SOMENTE ORIGEM |
+|---|---|---|---|
+| `IMPORT API PN ENTRADA REST` | vazio | `\\SERVIDOR\ALTOMACAO\IMPORT_API_PN\entrada-rest` | `SIM` |
+
+Essa linha nao e cliente final, nao entra em duplicidade de CNPJ e nunca deve ser destino operacional. Ela serve apenas como caixa de entrada tecnica para o RENOMEADOR.
+
+Para DMS, nao criar uma segunda linha `SOMENTE ORIGEM` esperando que o RENOMEADOR organize XML Dominio. Na V1, `SOMENTE ORIGEM` pertence ao fluxo REST do RENOMEADOR. A pasta `entrada-dms` e fila tecnica do IMPORT API PN/publicador DMS: o proprio importador valida o XML Dominio, consulta a linha real do cliente e publica no `CAMINHO DMS` dessa empresa, com ledger proprio. Se uma linha visual `IMPORT API PN ENTRADA DMS` existir no futuro, ela nao deve preencher `CAMINHO REST` nem ser importada pelo RENOMEADOR.
 
 Colunas de compatibilidade ja citadas pelo RENOMEADOR, como `CAMINHO CERTIFICADO DIGITAL`, `VALIDADE CERTIFICADO DIGITAL` e `SENHA CERTIFICADO DIGITAL`, nao devem ser reutilizadas de forma ambigua sem decisao explicita. Para o IMPORT API PN, a recomendacao e usar colunas com prefixo `CERTIFICADO API PN ...`, para separar leitura de API do uso operacional atual.
 
@@ -216,6 +226,24 @@ IMPORT API PN/
     └── health/
 ```
 
+No servidor operacional, separar entrada REST e DMS:
+
+```text
+\\SERVIDOR\ALTOMACAO\IMPORT_API_PN\
+├── entrada-rest\
+│   ├── XML Portal Nacional
+│   └── PDF/DANFSe
+├── entrada-dms\
+│   └── XML Dominio
+└── backend\
+    ├── ledger\
+    ├── fila\
+    ├── logs\
+    └── health\
+```
+
+`entrada-rest` e monitorada pelo RENOMEADOR. `entrada-dms` nao e monitorada pelo RENOMEADOR na V1; ela pertence ao IMPORT API PN/publicador DMS, que deve publicar XML Dominio no `CAMINHO DMS` correto.
+
 Observacao: `operacao/certificados/` pode existir como pasta local, mas os certificados reais devem ficar fora do Git. O `.gitignore` do modulo deve ignorar `*.pfx`, `*.p12`, senhas, logs, ledgers, XML/PDF baixados e temporarios.
 
 Nas pastas REST/DMS do cliente, criar apenas arquivos finais esperados pela operacao. Logs, fila, ledger, temporarios e quarentena ficam no backend tecnico do modulo.
@@ -240,7 +268,8 @@ Nas pastas REST/DMS do cliente, criar apenas arquivos finais esperados pela oper
    - agenda PDF em fila separada;
    - gera PDF localmente pelo XML ou usa API DANFSe apenas como fallback transitorio;
    - valida tamanho, extensao, conteudo e chave;
-   - entrega XML/PDF validado na raiz do `CAMINHO REST`, usando arquivo temporario e renomeacao atomica quando possivel;
+   - entrega XML/PDF REST validado na pasta tecnica `entrada-rest`, usando arquivo temporario e renomeacao atomica quando possivel;
+   - quando a empresa exigir DMS, gera/valida XML Dominio em fila separada e publica no `CAMINHO DMS`, sem passar pelo RENOMEADOR REST;
    - nunca grava direto dentro de `PDF/` ou `XML/`, pois essas pastas sao saida do RENOMEADOR;
    - atualiza ledger somente depois do arquivo entregue estar confirmado.
 9. Uma nota so vira `CONCLUIDA` quando XML e PDF estiverem finais, validados e organizados pelo RENOMEADOR.
@@ -280,7 +309,7 @@ Depois de baixar:
 - validar se PDF e realmente PDF (`%PDF-`) e nao erro HTML/JSON;
 - validar tamanho minimo plausivel;
 - gravar em temporario;
-- entregar na raiz do `CAMINHO REST` para o RENOMEADOR organizar;
+- entregar em `entrada-rest` para o RENOMEADOR organizar no `CAMINHO REST` final correto;
 - atualizar ledger.
 
 ## Mes vigente e roteamento por pasta
@@ -298,7 +327,11 @@ Regra conservadora:
 
 Decisao revisada de integracao com o RENOMEADOR:
 
-- `CAMINHO REST` e a entrada unica: IMPORT API PN deposita XML e PDF na raiz dessa pasta.
+- `entrada-rest` e a entrada tecnica unica: IMPORT API PN deposita XML e PDF REST validados nessa pasta global.
+- A linha tecnica `IMPORT API PN ENTRADA REST` fica marcada como `SOMENTE ORIGEM = SIM` na planilha para o RENOMEADOR monitorar essa pasta.
+- `CAMINHO REST` continua sendo o destino operacional final de cada empresa/mes, nao a caixa de entrada global.
+- `entrada-dms` nao e uma origem do RENOMEADOR. Ela e fila do IMPORT API PN/publicador DMS.
+- `CAMINHO DMS` continua sendo o destino operacional final do XML Dominio por empresa/mes.
 - IMPORT API PN nao classifica retencao, cancelamento, tomador incorreto nem nome operacional final.
 - RENOMEADOR organiza PDF e XML juntos, usando as mesmas regras fiscais.
 - A saida final do RENOMEADOR e separada por tipo:
@@ -319,11 +352,51 @@ CAMINHO REST/
 
 Regras praticas:
 
-- IMPORT API PN grava primeiro em temporario no backend ou na REST com extensao temporaria, valida hash/conteudo e so depois renomeia para `.xml` ou `.pdf`.
+- IMPORT API PN grava primeiro em temporario no backend ou em `entrada-rest` com extensao temporaria, valida hash/conteudo e so depois renomeia para `.xml` ou `.pdf`.
 - IMPORT API PN nao grava diretamente em `PDF/` nem `XML/`.
 - RENOMEADOR decide a pasta final correta por CNPJ do tomador, mes de emissao, cancelamento e retencao.
-- DMS nao precisa receber PDF na decisao atual; quando usado, recebe somente XML no formato Dominio, em fluxo separado e documentado antes da producao.
+- DMS nao precisa receber PDF na decisao atual; quando usado, recebe somente XML no formato Dominio.
+- XML Dominio nao deve cair em `entrada-rest`.
+- XML Dominio tambem nao deve ser enviado ao RENOMEADOR como `SOMENTE ORIGEM`; ele usa `entrada-dms` e publicador DMS separado, que entrega no `CAMINHO DMS` correto da empresa.
 - Nao criar `CAMINHO XML` separado na planilha enquanto a decisao operacional for `CAMINHO REST` unico.
+
+### Como o DMS sera separado pela planilha
+
+O DMS sera separado pelo proprio IMPORT API PN, olhando a linha real de cada cliente na planilha. O RENOMEADOR nao participa dessa separacao.
+
+Para cada nota baixada:
+
+1. IMPORT API PN baixa e valida o XML fiscal original.
+2. Le do XML o CNPJ do tomador, data de emissao/competencia, numero e chave da nota.
+3. Procura na planilha a linha real do cliente pelo CNPJ.
+4. Confere se a empresa esta ativa para IMPORT API PN e se o mes da nota tem aba/caminho valido.
+5. Le o `CAMINHO DMS` da linha desse cliente naquele mes.
+6. Se `CAMINHO DMS` estiver vazio, inexistente ou sem permissao, a nota fica com estado `DMS_PENDENTE_CAMINHO` e aparece no painel; o sistema nao envia para pasta errada.
+7. Converte/gera o XML no formato Dominio quando a empresa exigir DMS.
+8. Grava primeiro em arquivo temporario dentro do backend ou de `entrada-dms`.
+9. Valida o XML Dominio gerado: CNPJ, numero, data, valor, chave quando existir, tamanho e XML bem formado.
+10. Publica no `CAMINHO DMS` do cliente correto usando escrita em duas fases: temporario, conferencia de hash/tamanho e renomeacao final.
+11. Atualiza ledger somente depois que o arquivo final estiver confirmado no `CAMINHO DMS`.
+
+Exemplo de uso da planilha:
+
+| CLIENTE | CNPJ | CAMINHO REST | CAMINHO DMS | SOMENTE ORIGEM |
+|---|---|---|---|---|
+| Cliente A | `11.111.111/0001-11` | pasta REST A | pasta DMS A | vazio ou `NAO` |
+| Cliente B | `22.222.222/0001-22` | pasta REST B | pasta DMS B | vazio ou `NAO` |
+| `IMPORT API PN ENTRADA REST` | vazio | `\\SERVIDOR\ALTOMACAO\IMPORT_API_PN\entrada-rest` | vazio | `SIM` |
+
+Quando chegar uma nota do Cliente A, o IMPORT API PN consulta o CNPJ `11.111.111/0001-11`, pega `pasta DMS A` e publica o XML Dominio nessa pasta. Quando chegar uma nota do Cliente B, publica em `pasta DMS B`. A pasta `entrada-dms` pode existir como fila tecnica interna, mas nunca substitui o `CAMINHO DMS` individual de cada cliente.
+
+Regras de seguranca para DMS:
+
+- nunca publicar XML Dominio em uma pasta unica geral;
+- nunca usar `CAMINHO REST` como fallback de DMS;
+- nunca usar linha `SOMENTE ORIGEM = SIM` como destino DMS;
+- se houver mais de uma linha com o mesmo CNPJ no mesmo mes, bloquear a publicacao DMS e mandar para revisao;
+- se a data da nota apontar para outro mes, usar a aba/caminho do mes correto quando existir; se nao existir, marcar `DMS_PENDENTE_MES`;
+- se ja existir XML Dominio no destino com mesmo hash, marcar duplicado confirmado e nao sobrescrever;
+- se ja existir arquivo com mesmo nome e hash diferente, mandar para quarentena e painel `ATENCAO`.
 
 ## Certificados digitais
 
@@ -552,9 +625,9 @@ Checklist de aceite:
 
 - endpoints oficiais revisados no dia da implementacao;
 - `MODO_SOMENTE_LEITURA` definido como padrao;
-- decisao registrada: `CAMINHO REST` e entrada unica, com saida final em `PDF/...` e `XML/...`;
+- decisao registrada: `entrada-rest` global como linha `SOMENTE ORIGEM`, com saida final em `CAMINHO REST/PDF/...` e `CAMINHO REST/XML/...`;
 - decisao registrada: DMS recebe somente XML Dominio quando aplicavel;
-- contrato `IMPORT API PN -> RENOMEADOR` aprovado para entrega de XML/PDF na raiz do `CAMINHO REST`;
+- contrato `IMPORT API PN -> RENOMEADOR` aprovado para entrega de XML/PDF REST na entrada tecnica global;
 - colunas `CERTIFICADO API PN PASTA`, `CERTIFICADO API PN ARQUIVO` e `CERTIFICADO API PN ALIAS` aprovadas na planilha;
 - decisao registrada sobre cofre local de certificados;
 - limites iniciais definidos em configuracao.
@@ -573,8 +646,11 @@ Checklist de aceite:
 
 - empresas ativas carregadas;
 - CNPJs normalizados;
-- `CAMINHO REST` validado como pasta de entrada e saida operacional;
+- `CAMINHO REST` validado como destino operacional final;
+- linha tecnica `IMPORT API PN ENTRADA REST` validada como origem monitorada;
 - `CAMINHO DMS` validado somente quando a empresa exigir XML Dominio;
+- mapa `CNPJ -> CAMINHO DMS` carregado por mes para publicacao Dominio;
+- CNPJ duplicado com `CAMINHO DMS` conflitante no mesmo mes bloqueia publicacao ate revisao;
 - certificado resolvido por pasta + arquivo;
 - senha resolvida por alias/cofre local;
 - certificado A1 abre com senha;
@@ -660,20 +736,23 @@ Testes/validacao:
 
 ### Fase 5 - Publicacao REST/DMS e deduplicacao final
 
-Objetivo: entregar XML/PDF validados ao RENOMEADOR pela raiz do `CAMINHO REST` e deixar o RENOMEADOR mover os arquivos finais para destinos corretos sem duplicar e sem corromper.
+Objetivo: entregar XML/PDF REST validados ao RENOMEADOR pela pasta tecnica `entrada-rest` e deixar o RENOMEADOR mover os arquivos finais para destinos corretos sem duplicar e sem corromper.
 
 Checklist de aceite:
 
 - XML/PDF gerados primeiro em temporario;
-- arquivos validados sao depositados na raiz do `CAMINHO REST`;
+- arquivos REST validados sao depositados em `entrada-rest`;
 - RENOMEADOR reconhece XML/PDF soltos e organiza os dois em `PDF/...` e `XML/...`;
+- XML Dominio validado e depositado na fila `entrada-dms` ou publicado diretamente no `CAMINHO DMS` pelo publicador DMS;
+- publicador DMS resolve o destino pelo CNPJ/data da nota e pelo `CAMINHO DMS` da planilha;
 - IMPORT API PN nao duplica regras de retencao/cancelamento do RENOMEADOR;
 - publicacao em duas fases: temporario, validacao, entrega ao RENOMEADOR;
 - hash conferido no destino;
 - arquivo existente com mesmo hash nao sobrescreve;
 - nome igual com chave diferente vai para quarentena;
 - pasta sem permissao bloqueia apenas a empresa;
-- REST nao recebe logs/ledger nem arquivos dentro de `PDF/` ou `XML/` gravados pelo importador.
+- REST final do cliente nao recebe logs/ledger nem arquivos dentro de `PDF/` ou `XML/` gravados pelo importador.
+- XML Dominio para DMS nao passa pelo RENOMEADOR REST; usa `entrada-dms`/publicador DMS e destino `CAMINHO DMS`.
 
 Testes/validacao:
 
@@ -777,7 +856,7 @@ Testes/validacao:
 
 ## Arquivos e nomes
 
-IMPORT API PN nao define o nome final operacional. Ele deve usar nomes temporarios controlados por chave/NSU/hash apenas ate entregar o arquivo validado na raiz do `CAMINHO REST`.
+IMPORT API PN nao define o nome final operacional. Ele deve usar nomes temporarios controlados por chave/NSU/hash apenas ate entregar o arquivo REST validado em `entrada-rest`.
 
 O nome final e responsabilidade do RENOMEADOR:
 
@@ -836,7 +915,7 @@ Componentes:
 - A senha do certificado ficara em qual cofre local?
 - O DMS exige nomenclatura propria para XML Dominio?
 - Devemos gerar DANFSe local desde a primeira versao, considerando a suspensao oficial em 01/07/2026?
-- Qual sera o nome temporario usado pelo importador antes de entregar XML/PDF na raiz do `CAMINHO REST`?
+- Qual sera o nome temporario usado pelo importador antes de entregar XML/PDF REST em `entrada-rest`?
 
 ## Recomendacao de primeira versao
 
@@ -855,6 +934,6 @@ V1 deve ser pequena e segura:
 - executar janelas atrasadas quando o computador ligar depois do horario;
 - manter logs estruturados compactados e com retencao;
 - gerar painel operacional;
-- entregar XML/PDF na raiz do `CAMINHO REST` e deixar o RENOMEADOR organizar.
+- entregar XML/PDF REST em `entrada-rest` e deixar o RENOMEADOR organizar no `CAMINHO REST` final.
 
 V1.1 deve completar/homologar visualmente a geracao local do DANFSe a partir do XML, porque depender da API DANFSe nao e sustentavel apos 01/07/2026.

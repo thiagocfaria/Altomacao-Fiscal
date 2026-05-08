@@ -59,10 +59,10 @@ Validacao recente:
 
 ```bash
 mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR test
-# 148 testes, 0 falhas
+# 150 testes, 0 falhas
 
 mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
-# 148 testes unitarios + 1 teste de integracao, 0 falhas
+# 150 testes unitarios + 1 teste de integracao, 0 falhas
 ```
 
 Pendente antes de declarar producao final:
@@ -138,9 +138,10 @@ Fronteiras importantes:
 
 ## 5. Entradas e Saidas
 
-Entrada principal:
+Entradas principais:
 
 - PDFs e XMLs soltos na raiz das pastas REST cadastradas na planilha;
+- PDFs e XMLs REST soltos em uma pasta tecnica global marcada como `SOMENTE ORIGEM`, por exemplo `IMPORT API PN ENTRADA REST`;
 - `PLANILHA_FISCAL.xlsm` na raiz do projeto;
 - `RENOMEADOR/operacao/empresas.yaml` gerado a partir da planilha.
 
@@ -202,7 +203,9 @@ O `watch-status.json` tambem muda para `status: "ATENCAO"` quando a ultima
 varredura/evento encontrou revisao, erro ou ignorado.
 
 O sistema nao cria `logs/`, `ledger`, `originais/` ou `split-work/` dentro da REST do cliente.
-IMPORT API PN deve depositar XML/PDF apenas na raiz do `CAMINHO REST`; `PDF/` e `XML/` sao pastas de saida do RENOMEADOR.
+IMPORT API PN deve depositar XML/PDF REST na entrada tecnica global `entrada-rest`, cadastrada na planilha como `SOMENTE ORIGEM`. O RENOMEADOR le essa origem, identifica CNPJ/data pelo arquivo e move para o `CAMINHO REST` correto. `PDF/` e `XML/` sao pastas de saida do RENOMEADOR.
+
+XML Dominio/DMS nao e entrada do RENOMEADOR V1. O fluxo DMS pertence ao IMPORT API PN/publicador DMS e deve publicar no `CAMINHO DMS` da linha real do cliente, sem usar `SOMENTE ORIGEM` do RENOMEADOR.
 
 ## 6. Planilha Fiscal
 
@@ -232,8 +235,18 @@ Colunas relevantes para o RENOMEADOR:
 |---|---|
 | `CLIENTE` | gera identificador legivel da empresa |
 | `CNPJ` | CNPJ esperado do tomador |
-| `CAMINHO REST` | pasta direta monitorada, entrada unica de PDF/XML e destino operacional do mes |
-| `SOMENTE ORIGEM` | marca pasta generica/pasta errada que nunca deve ser destino por CNPJ |
+| `CAMINHO REST` | destino operacional final da empresa/mes; tambem pode apontar para uma pasta tecnica REST quando `SOMENTE ORIGEM = SIM` |
+| `SOMENTE ORIGEM` | marca pasta REST generica/pasta errada/entrada global que nunca deve ser destino por CNPJ |
+
+Linha tecnica aceita para o IMPORT API PN:
+
+| CLIENTE | CNPJ | CAMINHO REST | SOMENTE ORIGEM |
+|---|---|---|---|
+| `IMPORT API PN ENTRADA REST` | vazio | pasta global `entrada-rest` | `SIM` |
+
+Essa linha e monitorada como origem. O CNPJ pode ficar vazio porque o destino sera resolvido pelo CNPJ extraido do PDF/XML.
+
+Nao criar linha equivalente para DMS esperando roteamento pelo RENOMEADOR. Uma linha com `CAMINHO DMS` e `SOMENTE ORIGEM = SIM`, mas sem `CAMINHO REST`, nao vira origem monitorada do RENOMEADOR. DMS deve ser tratado por modulo/publicador proprio.
 
 Colunas que ficam para outros modulos ou operacao:
 
@@ -241,7 +254,17 @@ Colunas que ficam para outros modulos ou operacao:
 - `CAMINHO ENTRADA/SAIDA`;
 - `CAMINHO CERTIFICADO DIGITAL`;
 - `VALIDADE CERTIFICADO DIGITAL`;
-- `SENHA CERTIFICADO DIGITAL`.
+- `SENHA CERTIFICADO DIGITAL`;
+- `IMPORT API PN ATIVO`;
+- `CERTIFICADO API PN PASTA`;
+- `CERTIFICADO API PN ARQUIVO`;
+- `CERTIFICADO API PN ALIAS`;
+- `VALIDADE CERTIFICADO API PN`;
+- `CNPJ RAIZ CERTIFICADO`;
+- `MODO API PN`;
+- `AMBIENTE API PN`;
+- `STATUS API PN`;
+- `ULTIMO NSU API PN`.
 
 Regra mensal:
 

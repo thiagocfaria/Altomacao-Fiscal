@@ -233,13 +233,23 @@ public final class ExcelCompanyImporter {
             if (name.isBlank() && taxId.isBlank() && path.isBlank()) {
                 continue;
             }
-            if (!path.isBlank() && (name.isBlank() || taxId.isBlank())) {
-                throw new IllegalArgumentException("Linha incompleta na planilha: " + (rowIndex + 1));
-            }
-            if (name.isBlank() || taxId.isBlank()) {
+            if (explicitSourceOnly && path.isBlank()) {
                 continue;
             }
-            if (explicitSourceOnly && path.isBlank()) {
+            if (!path.isBlank() && name.isBlank()) {
+                throw new IllegalArgumentException("Linha incompleta na planilha: " + (rowIndex + 1));
+            }
+            if (!path.isBlank() && taxId.isBlank() && !sourceOnly) {
+                throw new IllegalArgumentException("Linha incompleta na planilha: " + (rowIndex + 1));
+            }
+            if (name.isBlank()) {
+                continue;
+            }
+            if (taxId.isBlank()) {
+                if (sourceOnly && !path.isBlank()) {
+                    companies.add(new ImportedCompany(uniqueIdFor(name, idCounts), name, taxId, false,
+                            Path.of(path), true));
+                }
                 continue;
             }
             if (!validOrFixableCnpj) {

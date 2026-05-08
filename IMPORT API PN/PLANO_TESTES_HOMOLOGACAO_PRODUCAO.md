@@ -125,7 +125,9 @@ Aceite:
 
 - Revisar endpoints oficiais no dia.
 - Confirmar modo somente leitura.
-- Confirmar `CAMINHO REST` como entrada unica para XML/PDF.
+- Confirmar linha tecnica `IMPORT API PN ENTRADA REST` como `SOMENTE ORIGEM`, apontando para `entrada-rest`.
+- Confirmar `CAMINHO REST` como destino final por empresa/mes.
+- Confirmar que DMS nao usa `SOMENTE ORIGEM` do RENOMEADOR; DMS usa `entrada-dms`/publicador DMS e `CAMINHO DMS`.
 - Confirmar que IMPORT API PN nao grava dentro de `PDF/` nem `XML/`.
 - Confirmar que o RENOMEADOR organiza XML/PDF em `PDF/...` e `XML/...`.
 - Confirmar cofre de certificado.
@@ -135,6 +137,8 @@ Aceite:
 - 100% dos cenarios de certificado passam.
 - Nenhum segredo aparece em log.
 - Empresa invalida nao trava empresa valida.
+- Mapa `CNPJ -> CAMINHO DMS` carrega por mes.
+- CNPJ duplicado com `CAMINHO DMS` conflitante bloqueia DMS ate revisao.
 
 ### Fase 2
 
@@ -160,8 +164,11 @@ Aceite:
 - Movimento em duas fases comprovado.
 - Hash final confere.
 - Falha de pasta/rede nao corrompe destino.
-- XML/PDF soltos na raiz do `CAMINHO REST` sao aceitos pelo RENOMEADOR.
+- XML/PDF soltos em `entrada-rest` sao aceitos pelo RENOMEADOR.
 - RENOMEADOR organiza PDF e XML sem duplicar regras no IMPORT API PN.
+- XML Dominio em `entrada-dms` nao entra no RENOMEADOR REST e e publicado no `CAMINHO DMS` pelo publicador DMS.
+- XML Dominio de Cliente A nunca cai no `CAMINHO DMS` do Cliente B.
+- `CAMINHO DMS` vazio, sem permissao ou de mes ausente vira pendencia no painel, nao publicacao improvisada.
 
 ### Fase 6
 

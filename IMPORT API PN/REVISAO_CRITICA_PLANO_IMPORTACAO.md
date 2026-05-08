@@ -108,7 +108,7 @@ Se o IMPORT API PN jogar PDF final direto na REST, ele precisa classificar reten
 
 Decisao revisada:
 
-- IMPORT API PN entrega XML/PDF validados na raiz do `CAMINHO REST`;
+- IMPORT API PN entrega XML/PDF REST validados em `entrada-rest`, a pasta tecnica global monitorada pelo RENOMEADOR;
 - RENOMEADOR organiza PDF e XML juntos;
 - RENOMEADOR continua dono das regras de retencao, cancelamento, tomador incorreto, nome final e duplicidade operacional;
 - XML organizado segue `CAMINHO REST/XML/...`;
@@ -118,12 +118,12 @@ Decisao revisada:
 Contrato revisado de entrega:
 
 ```text
-CAMINHO REST/
+\\SERVIDOR\ALTOMACAO\IMPORT_API_PN\entrada-rest\
   <arquivo-validado>.xml
   <arquivo-validado>.pdf
 ```
 
-O RENOMEADOR le cada arquivo pela propria estrutura fiscal. A relacao XML/PDF deve ficar no ledger do IMPORT API PN por chave/NSU/hash, sem exigir pacote na REST.
+O RENOMEADOR le cada arquivo pela propria estrutura fiscal e move para o `CAMINHO REST` correto da empresa/mes. A relacao XML/PDF deve ficar no ledger do IMPORT API PN por chave/NSU/hash, sem exigir pacote na REST.
 
 ### Falha 6: faltava modelo de observabilidade
 
@@ -552,10 +552,10 @@ Nao declarar producao pronta antes de cumprir:
 
 O plano principal deve ser lido com estas correcoes:
 
-- A planilha nao deve ganhar `CAMINHO XML` nem `CAMINHO ENTRADA API PN` na V1; `CAMINHO REST` e a entrada unica para XML/PDF.
+- A planilha nao deve ganhar `CAMINHO XML` nem `CAMINHO ENTRADA API PN` na V1; a entrada REST global e uma linha tecnica `SOMENTE ORIGEM` apontando para `entrada-rest`.
 - Certificado deve ser identificado por pasta + nome exato do arquivo + alias.
 - Senha deve ser resolvida por cofre/alias sempre que possivel, nao por texto aberto na planilha.
-- IMPORT API PN deve depositar XML/PDF validados na raiz do `CAMINHO REST`, sem gravar dentro de `PDF/` ou `XML/`.
+- IMPORT API PN deve depositar XML/PDF REST validados em `entrada-rest`, sem gravar dentro de `PDF/` ou `XML/`.
 - RENOMEADOR organiza XML e PDF juntos em `PDF/...` e `XML/...`, sem duplicar regra no IMPORT API PN.
 - Testes com certificado real devem ser `SOMENTE_LEITURA`.
 - Endpoints de escrita fiscal devem ser bloqueados por codigo na V1.
@@ -564,6 +564,10 @@ O plano principal deve ser lido com estas correcoes:
 - PDF e obrigatorio para concluir nota, mesmo sendo gerado em fila separada.
 - API DANFSe e fallback temporario ate 01/07/2026.
 - XML tem destino final claro dentro do `CAMINHO REST`: `XML/processados`, `XML/RETIDO`, `XML/canceladas` ou `XML/TOMADOR NAO ENCONTRADO`.
+- XML Dominio para DMS usa fluxo separado em `entrada-dms` e nao passa pelo RENOMEADOR REST.
+- `SOMENTE ORIGEM` no RENOMEADOR deve ser entendido como origem REST. Nao usar essa coluna para criar uma segunda caixa DMS processada pelo RENOMEADOR na V1.
+- O publicador DMS deve consultar a linha real do cliente e gravar XML Dominio no `CAMINHO DMS`, com ledger e validacao proprios.
+- O destino DMS deve ser resolvido por CNPJ/data contra a planilha mensal. `CAMINHO DMS` vazio, duplicado conflitante, sem permissao ou ausente no mes correto vira pendencia/quarentena, nunca fallback para pasta geral.
 - Ledger deve ser mais forte que `ULTIMO NSU`.
 - Deve existir reconciliacao periodica.
 - Deve existir execucao atrasada quando o computador ligar depois do horario.

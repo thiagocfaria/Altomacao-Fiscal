@@ -210,6 +210,47 @@ class ExcelCompanyImporterTest {
     }
 
     @Test
+    void importsTechnicalRestInputWithoutCnpjWhenMarkedSourceOnly() throws Exception {
+        Path globalRestInput = Files.createDirectories(tempDir.resolve("entrada-rest-global"));
+        Path targetFolder = Files.createDirectories(tempDir.resolve("destino-correto"));
+        Path workbook = dashboardFiscalWorkbook(
+                dashboardRow("IMPORT API PN ENTRADA REST", "", globalRestInput.toString(), "SIM"),
+                dashboardRow("Cliente Correto", "25.014.360/0001-73", targetFolder.toString())
+        );
+        Path output = tempDir.resolve("empresas.yaml");
+
+        new ExcelCompanyImporter().importToYaml(workbook, output, "");
+
+        var registry = new CompanyRegistryLoader().load(output);
+        assertThat(registry.companies()).hasSize(2);
+        var source = registry.companies().get(0);
+        assertThat(source.id()).isEqualTo("import_api_pn_entrada_rest");
+        assertThat(source.enabled()).isTrue();
+        assertThat(source.sourceOnly()).isTrue();
+        assertThat(source.customerTaxId()).isBlank();
+        assertThat(source.basePath()).isEqualTo(globalRestInput);
+    }
+
+    @Test
+    void ignoresDmsSourceOnlyRowBecauseRenomeadorOnlyConsumesRestInput() throws Exception {
+        Path dmsInput = Files.createDirectories(tempDir.resolve("entrada-dms-global"));
+        Path targetFolder = Files.createDirectories(tempDir.resolve("destino-rest-correto"));
+        Path workbook = dashboardFiscalWorkbookWithDms(
+                dashboardDmsRow("IMPORT API PN ENTRADA DMS", "", dmsInput.toString(), "", "SIM"),
+                dashboardDmsRow("Cliente Correto", "25.014.360/0001-73", "", targetFolder.toString(), "")
+        );
+        Path output = tempDir.resolve("empresas.yaml");
+
+        new ExcelCompanyImporter().importToYaml(workbook, output, "");
+
+        var companies = new CompanyRegistryLoader().load(output).companies();
+        assertThat(companies).hasSize(1);
+        assertThat(companies.get(0).id()).isEqualTo("cliente_correto");
+        assertThat(companies.get(0).sourceOnly()).isFalse();
+        assertThat(companies.get(0).basePath()).isEqualTo(targetFolder);
+    }
+
+    @Test
     void ignoresSourceOnlyMarkerWhenClientHasValidCnpjAndRestPath() throws Exception {
         Path targetFolder = Files.createDirectories(tempDir.resolve("destino-correto"));
         Path workbook = dashboardFiscalWorkbook(
@@ -348,6 +389,30 @@ class ExcelCompanyImporterTest {
         return workbook;
     }
 
+    private Path dashboardFiscalWorkbookWithDms(String[]... rows) throws Exception {
+        Path workbook = tempDir.resolve("dashboard-dms.xlsm");
+        try (XSSFWorkbook wb = new XSSFWorkbook(); OutputStream out = Files.newOutputStream(workbook)) {
+            Sheet sheet = wb.createSheet("Dashboard Fiscal");
+            sheet.createRow(0).createCell(0).setCellValue("DASHBOARD FISCAL");
+            Row header = sheet.createRow(1);
+            header.createCell(0).setCellValue("CLIENTE");
+            header.createCell(3).setCellValue("CNPJ");
+            header.createCell(16).setCellValue("CAMINHO DMS\n(duplo-clique)");
+            header.createCell(17).setCellValue("CAMINHO REST\n(duplo-clique)");
+            header.createCell(22).setCellValue("SOMENTE ORIGEM");
+            for (int index = 0; index < rows.length; index++) {
+                Row row = sheet.createRow(index + 2);
+                row.createCell(0).setCellValue(rows[index][0]);
+                row.createCell(3).setCellValue(rows[index][1]);
+                row.createCell(16).setCellValue(rows[index][2]);
+                row.createCell(17).setCellValue(rows[index][3]);
+                row.createCell(22).setCellValue(rows[index][4]);
+            }
+            wb.write(out);
+        }
+        return workbook;
+    }
+
     private Path workbookWithDashboardAndCadastro(String[]... rows) throws Exception {
         Path workbook = tempDir.resolve("dashboard-cadastro.xlsm");
         try (XSSFWorkbook wb = new XSSFWorkbook(); OutputStream out = Files.newOutputStream(workbook)) {
@@ -440,6 +505,11 @@ class ExcelCompanyImporterTest {
 
     private static String[] dashboardRow(String name, String taxId, String restPath, String sourceOnly) {
         return new String[]{name, taxId, restPath, sourceOnly};
+    }
+
+    private static String[] dashboardDmsRow(String name, String taxId, String dmsPath, String restPath,
+                                            String sourceOnly) {
+        return new String[]{name, taxId, dmsPath, restPath, sourceOnly};
     }
 
     private static String[] monthlyRow(String name, String taxId, String restPath, String sourceOnly) {
