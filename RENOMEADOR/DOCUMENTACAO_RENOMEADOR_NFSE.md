@@ -1,7 +1,7 @@
 # RENOMEADOR NFS-e
 
 Documentacao unica do modulo `RENOMEADOR/`.
-Atualizado em 08/05/2026.
+Atualizado em 13/05/2026.
 
 ## 1. Objetivo
 
@@ -13,7 +13,9 @@ Ele foi desenhado para:
 - separar PDFs com varias notas quando a divisao for segura;
 - identificar layout homologado;
 - extrair dados fiscais principais;
-- validar o CNPJ do tomador;
+- validar o CNPJ do tomador nas entradas REST normais;
+- preservar o CNPJ da consulta nos arquivos `PN_<cnpjConsulta>_NSU_...` gerados pelo
+  `IMPORT API PN`;
 - rotear notas que entraram na pasta errada;
 - detectar cancelamento, retencao e duplicidade fiscal;
 - gerar nome operacional padronizado;
@@ -45,7 +47,9 @@ Estado tecnico em 08/05/2026:
 - `empresas.yaml` e validado em modo estrito: campo desconhecido gera erro antes da execucao;
 - `backendRoot` pode ser definido no YAML para fixar logs, indices, painel, healthcheck e lock em local oficial;
 - PDFs acima de 50MB ou acima de 80 paginas caem em revisao antes da extracao textual pesada;
-- XMLs do Portal Nacional sao lidos, renomeados e organizados com a mesma regra fiscal usada para PDFs;
+- XMLs do Portal Nacional sao lidos, renomeados e organizados; quando vierem do
+  `IMPORT API PN` com prefixo `PN_<cnpjConsulta>_NSU_...`, o CNPJ da consulta e o dono
+  do roteamento;
 - REST do cliente separa saida final por tipo: `PDF/...` e `XML/...`;
 - batch/watch usam fila tecnica limitada para processamento com timeout, evitando crescimento sem controle de threads;
 - logs TSV, ledger e indice de duplicidade escapam tab/quebra de linha e preservam linhas corrompidas em `.corrompidas`;
@@ -203,7 +207,7 @@ O `watch-status.json` tambem muda para `status: "ATENCAO"` quando a ultima
 varredura/evento encontrou revisao, erro ou ignorado.
 
 O sistema nao cria `logs/`, `ledger`, `originais/` ou `split-work/` dentro da REST do cliente.
-IMPORT API PN deve depositar XML/PDF REST na entrada tecnica global `entrada-rest`, cadastrada na planilha como `SOMENTE ORIGEM`. O RENOMEADOR le essa origem, identifica CNPJ/data pelo arquivo e move para o `CAMINHO REST` correto. `PDF/` e `XML/` sao pastas de saida do RENOMEADOR.
+IMPORT API PN deve depositar XML/PDF REST na entrada tecnica global `entrada-rest`, cadastrada na planilha como `SOMENTE ORIGEM`. Arquivos publicados por ele usam nome `PN_<cnpjConsulta>_NSU_...`; nesse caso o RENOMEADOR move para o `CAMINHO REST` do CNPJ consultado, nao para o CNPJ do tomador quando ele for diferente. `PDF/` e `XML/` sao pastas de saida do RENOMEADOR.
 
 XML Dominio/DMS nao e entrada do RENOMEADOR V1. O fluxo DMS pertence ao IMPORT API PN/publicador DMS e deve publicar no `CAMINHO DMS` da linha real do cliente, sem usar `SOMENTE ORIGEM` do RENOMEADOR.
 
@@ -403,6 +407,13 @@ Tomador incorreto:
 - a recuperacao so tira uma pendencia de `PDF/TOMADOR NAO ENCONTRADO/` ou `XML/TOMADOR NAO ENCONTRADO/` quando o mes de emissao da nota tem caminho REST ativo;
 - se a pendencia for de abril e so houver caminho de maio, ela permanece na pasta de tomador nao encontrado do proprio tipo.
 
+Excecao obrigatoria para IMPORT API PN:
+
+- arquivo `PN_<cnpjConsulta>_NSU_...` ja informa a linha dona da consulta;
+- o RENOMEADOR procura REST ativa pelo `cnpjConsulta` do nome do arquivo;
+- se o tomador do XML/PDF for outro CNPJ, isso nao redireciona o arquivo para outra linha;
+- se o `cnpjConsulta` nao tiver REST ativa no mes correto, o arquivo vai para revisao tecnica.
+
 Movimentacao de arquivos:
 
 - quando o movimento atomico nao e seguro ou nao e suportado, o sistema usa `copiar -> verificar conteudo -> renomear destino -> verificar destino -> apagar origem`;
@@ -460,6 +471,15 @@ Validar configuracao:
 ```bash
 java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config check --config operacao/empresas.yaml
 ```
+
+Preflight do painel, sem batch/watch real:
+
+```bash
+java -jar target/renomeador-nfse-0.1.0-SNAPSHOT.jar config preflight --config operacao/empresas.yaml --mes 2026-05
+```
+
+O `preflight` valida YAML, rotas do mes, lock de instancia, `backendRoot` e se o
+watch consegue registrar as entradas tecnicas, sem processar arquivos.
 
 Batch em homologacao:
 

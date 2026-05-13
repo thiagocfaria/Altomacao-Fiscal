@@ -3,12 +3,21 @@ package br.com.nfse.renomeador.processing;
 import br.com.nfse.renomeador.InvoiceData;
 import br.com.nfse.renomeador.ProcessingDecision;
 import br.com.nfse.renomeador.layout.LayoutType;
+import br.com.nfse.renomeador.text.TextNormalizer;
 
 public final class ProcessingDecisionService {
     private final CompanyValidator companyValidator;
+    private final String expectedTaxIdDigits;
+    private final boolean acceptProviderOrCustomer;
 
     public ProcessingDecisionService(String expectedCustomerTaxId) {
+        this(expectedCustomerTaxId, false);
+    }
+
+    public ProcessingDecisionService(String expectedCustomerTaxId, boolean acceptProviderOrCustomer) {
         this.companyValidator = new CompanyValidator(expectedCustomerTaxId);
+        this.expectedTaxIdDigits = TextNormalizer.digitsOnly(expectedCustomerTaxId);
+        this.acceptProviderOrCustomer = acceptProviderOrCustomer;
     }
 
     public ProcessingDecision decide(InvoiceData invoice) {
@@ -18,7 +27,7 @@ public final class ProcessingDecisionService {
         if (invoice.layout() == LayoutType.UNSUPPORTED || invoice.layout() == LayoutType.NO_TEXT) {
             return new ProcessingDecision(ProcessingStatus.UNSUPPORTED, true, "Modelo nao suportado");
         }
-        if (!isBlank(invoice.customerTaxId()) && !companyValidator.matches(invoice)) {
+        if (hasComparableTaxId(invoice) && !matchesExpectedCompany(invoice)) {
             return new ProcessingDecision(ProcessingStatus.WRONG_COMPANY, true, "CNPJ incorreto para repositorio");
         }
         if (missingRequiredData(invoice)) {
@@ -41,5 +50,24 @@ public final class ProcessingDecisionService {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean hasComparableTaxId(InvoiceData invoice) {
+        if (expectedTaxIdDigits.isBlank()) {
+            return false;
+        }
+        if (acceptProviderOrCustomer) {
+            return !TextNormalizer.digitsOnly(invoice.providerTaxId()).isBlank()
+                    || !TextNormalizer.digitsOnly(invoice.customerTaxId()).isBlank();
+        }
+        return !TextNormalizer.digitsOnly(invoice.customerTaxId()).isBlank();
+    }
+
+    private boolean matchesExpectedCompany(InvoiceData invoice) {
+        if (acceptProviderOrCustomer) {
+            return expectedTaxIdDigits.equals(TextNormalizer.digitsOnly(invoice.providerTaxId()))
+                    || expectedTaxIdDigits.equals(TextNormalizer.digitsOnly(invoice.customerTaxId()));
+        }
+        return companyValidator.matches(invoice);
     }
 }

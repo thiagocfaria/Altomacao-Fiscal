@@ -1,68 +1,229 @@
 # SITUACAO ATUAL
 
-Atualizado em 08/05/2026.
+Atualizado em 13/05/2026.
 
-## Visao geral
+## Regra prioritaria
 
-O projeto foi separado para permitir novos modulos de automacao usando a mesma base de clientes/caminhos.
+A fonte de verdade para decidir importacao e:
 
-- `PLANILHA_FISCAL.xlsm` fica na raiz como cadastro compartilhado.
-- `RENOMEADOR/` e o modulo responsavel por renomear, separar e organizar PDFs/XMLs de NFS-e.
-- O `pom.xml` da raiz e agregador Maven e executa o modulo `RENOMEADOR`.
-- `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md` e a documentacao unica do modulo RENOMEADOR.
-- `AUDITORIA_RISCOS_RENOMEADOR.md` registra pontos frageis e correcoes recomendadas para producao longa.
-- `docs/referencias/planilha/` guarda referencias visuais da planilha compartilhada.
-- `docs/operacao/` guarda decisoes operacionais de ferramentas/MCPs.
+1. Portal Nacional/ADN, que informa quais notas existem.
+2. Pastas destino do cliente na `PLANILHA_FISCAL.xlsm`, que informam o que ja foi entregue.
+3. A linha ativa da aba mensal da planilha, que define quem e dono da consulta e quais
+   caminhos REST/DMS podem ser usados pelo `IMPORT API PN`.
 
-## Estado do modulo RENOMEADOR
+Ledger, indice de duplicatas e logs sao auditoria/otimizacao. Eles nao podem impedir a
+recomposicao de arquivo apagado no destino. Leia `REGRAS_INVARIANTES.md` antes de mexer
+em roteamento, ledger, duplicidade, reconciliacao, DMS ou entrada REST.
 
-O modulo RENOMEADOR esta como modulo independente V1.4, com documentacao consolidada, suporte a XML do Portal Nacional e pronto para homologacao operacional no Windows antes de producao assistida.
+Regra critica em vigor desde 13/05/2026: o `IMPORT API PN` nao herda caminho por grupo
+economico e nao resolve DMS pelo CNPJ do tomador. Para arquivos vindos do Portal, a linha
+ativa da planilha e a dona da importacao.
+
+## Estrutura viva
+
+| Caminho | Papel |
+|---|---|
+| `PLANILHA_FISCAL.xlsm` | cadastro compartilhado de clientes, caminhos e certificados |
+| `RENOMEADOR/` | organiza XML/PDF de NFS-e dentro do `CAMINHO REST` correto |
+| `IMPORT API PN/` | consulta Portal Nacional/ADN, baixa XML/PDF e publica REST/DMS |
+| `painel.py` | operacao local: verificar, ligar watch, reconciliar e desligar |
+| `docs/operacao/` | mapas logicos, decisoes de MCP, LSP, skills e trabalho com agentes |
+
+Arquivos operacionais gerados (`target/`, `IMPORT API PN/backend/`, `RENOMEADOR/operacao/`,
+backups, caches, XML/PDF reais e atalhos antigos) nao fazem parte do baseline do projeto.
+
+## Fluxo operacional atual
+
+1. O painel executa `VERIFICAR TUDO`.
+2. O painel importa a planilha para `RENOMEADOR/operacao/empresas.yaml` com todos os meses.
+3. O painel liga o RENOMEADOR em `watch`.
+4. O painel define o mes de atuacao:
+   - automatico ligado: usa o mes vigente do computador;
+   - automatico desligado: usa o mes escolhido manualmente no painel.
+5. A cada ciclo, o painel chama `IMPORT API PN reconciliar --mes AAAA-MM`.
+6. O reconciliador consulta Portal Nacional x destino real do cliente naquele mes.
+7. O que falta e republicado:
+   - XML/PDF REST entram na entrada REST tecnica e o RENOMEADOR roteia para `CAMINHO REST`;
+   - XML DMS e publicado diretamente pelo `IMPORT API PN` em `CAMINHO DMS`.
+
+Comportamento esperado: se um XML/PDF/DMS for apagado da pasta destino, a proxima
+reconciliacao deve detectar a falta e importar novamente, sem usar ledger como autoridade.
+
+## Estado do RENOMEADOR
+
+Modulo Maven independente no diretorio `RENOMEADOR/`.
+
+Responsabilidades atuais:
+
+- ler `empresas.yaml` gerado da planilha;
+- monitorar entrada REST tecnica;
+- separar XML e PDF;
+- identificar cliente por CNPJ/data de emissao;
+- preservar o dono da consulta em arquivos `PN_<cnpjConsulta>_NSU_...` gerados pelo
+  `IMPORT API PN`, roteando esses arquivos pelo CNPJ da consulta antes da regra normal
+  por tomador;
+- criar estrutura `XML/` e `PDF/` dentro do `CAMINHO REST`;
+- classificar `processados`, `RETIDO`, `canceladas` e `TOMADOR NAO ENCONTRADO`;
+- manter logs, ledger, indice e healthcheck fora da REST do cliente;
+- recuperar pendencias quando o cadastro passa a ter caminho correto;
+- evitar que duplicata stale bloqueie reprocessamento quando o destino sumiu.
+
+Documentacao canonica do modulo:
 
 - `RENOMEADOR/AGENTS.md`
 - `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md`
 
-Resumo do estado:
+## Estado do IMPORT API PN
 
-- batch, watch e config implementados;
-- planilha mensal multi-aba importada para YAML;
-- planilha preparada inclui colunas do `IMPORT API PN` para certificado por pasta + arquivo + alias;
-- linha tecnica `SOMENTE ORIGEM` sem CNPJ pode ser usada como `IMPORT API PN ENTRADA REST`;
-- roteamento por data de emissao do PDF/XML implementado;
-- macro de duplo clique corrigida para todas as abas `CADASTRO ...`;
-- batch de producao importa/valida uma vez e usa `--sem-atualizar-planilha`;
-- backend tecnico fica fora da REST do cliente;
-- ledger e indice de duplicidade ficam particionados por mes;
-- batch/watch gravam `backend/painel-operacional.tsv` com `OK` ou `ATENCAO` para facilitar conferencia no Dashboard do Excel;
-- watch grava healthcheck em `backend/health/watch-status.json` e faz varredura periodica;
-- recuperacao de `PDF/TOMADOR NAO ENCONTRADO` e `XML/TOMADOR NAO ENCONTRADO` respeita o mes de emissao antes de mover pendencia;
-- movimentacao sem `ATOMIC_MOVE` seguro usa copia verificada antes de apagar a origem;
-- `empresas.yaml` rejeita campos desconhecidos para impedir erro de digitacao silencioso;
-- `backendRoot` no YAML fixa o backend tecnico oficial para logs, indices, painel, healthcheck e lock;
-- PDFs acima de 50MB ou 80 paginas caem em revisao antes de extracao textual pesada;
-- XMLs do Portal Nacional tambem sao lidos, renomeados e enviados para `XML/...` dentro do `CAMINHO REST`;
-- entrada global `entrada-rest` pode ser monitorada como origem tecnica e roteada para o `CAMINHO REST` correto pelo CNPJ/data da nota;
-- `SOMENTE ORIGEM` no RENOMEADOR e origem REST; XML Dominio/DMS fica em fluxo proprio do IMPORT API PN/publicador DMS para `CAMINHO DMS`;
-- batch/watch usam executor limitado para timeout, sem crescimento livre de threads;
-- logs TSV, ledger e indice escapam campos e isolam linhas corrompidas em `.corrompidas`;
-- manutencao tecnica limpa `split-work/`, compacta logs e gera relatorio de `revisar/`;
-- release Windows possui rotina com dependency tree, integracao, package e teste do JAR;
-- caminhos relativos inseguros e `backendRoot` dentro da REST sao recusados;
-- suite de regressao exige PDFs reais/extremos minimos;
-- documentacoes antigas de desenvolvimento foram removidas do modulo.
+Modulo Maven no diretorio `IMPORT API PN/`.
 
-Validacao atual:
+Responsabilidades atuais:
 
-- `mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR test`: 150 testes, 0 falhas.
-- `mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration`: 150 testes unitarios + 1 teste de integracao, 0 falhas.
+- ler empresas ativas da aba mensal da `PLANILHA_FISCAL.xlsm`;
+- validar cadastro e certificados;
+- operar cliente ADN em modo somente leitura;
+- consultar lotes por NSU;
+- extrair XML de `LoteDFe`;
+- baixar DANFSe por chave enquanto a API oficial existir;
+- publicar XML/PDF REST na entrada tecnica para o RENOMEADOR;
+- publicar XML DMS direto no `CAMINHO DMS` da linha ativa, no mes de comando;
+- escanear destino real (`CAMINHO REST` e `CAMINHO DMS`) antes de decidir o que falta;
+- ignorar como `fora da empresa consultada` documentos cujo XML retornado pelo Portal nao
+  contem o CNPJ da linha ativa em papel fiscal reconhecido;
+- reconciliar Portal x destino com limite padrao de 500 lotes por rodada;
+- rodar `verificar-tudo` em modo somente leitura, usando o mesmo motor do
+  `reconciliar` em dry-run para contar o que seria importado sem publicar XML/PDF,
+  sem baixar DANFSe e sem alterar ledger.
 
-## Proximo passo geral
+Estado da correcao aplicada em 13/05/2026:
 
-Antes de iniciar outro modulo, o RENOMEADOR fica como referencia fechada. Para operacao real, ainda precisa apenas da validacao no Windows/Excel oficial:
+- `VERIFICAR TUDO` e modo real usam a mesma regra: linha ativa da planilha e dona da
+  importacao.
+- `GET /DFe/{NSU}` retornando `HTTP 404` e tratado como parada natural da varredura
+  daquele CNPJ/NSU, nao como `ERRO_EXTERNO`.
+- `LeitorPlanilhaFiscal` nao cria rotas tecnicas a partir de linhas inativas.
+- `PlanejadorDocumentoDfe` bloqueia a publicacao de XML que nao pertence ao CNPJ da
+  linha ativa e classifica como `NAO_PERTENCE_EMPRESA`.
+- O dry-run do `VERIFICAR TUDO` agora mostra `Documentos fora da empresa consultada`.
+- `RoteadorDmsPorEmissao` nao procura mais DMS pelo tomador; ele usa somente
+  `empresa.caminhoDms()` da linha ativa.
+- O RENOMEADOR preserva o dono `PN_<cnpjConsulta>` para XML/PDF publicados pelo
+  `IMPORT API PN`, evitando que o tomador mande o arquivo para outra linha.
 
-1. importar `PLANILHA_FISCAL.xlsm` para `RENOMEADOR/operacao/empresas.yaml`;
-2. validar config;
-3. rodar batch em homologacao;
-4. conferir saidas/logs;
-5. rodar batch real.
+Rodada real anterior, em 12/05/2026, antes desta correcao, mostrou falsos bloqueios de
+DMS por tomadores/filiais de outras linhas. Esses bloqueios nao devem mais ser tratados
+como regra valida do sistema.
 
-Novo modulo deve nascer em nova pasta propria, usando `PLANILHA_FISCAL.xlsm` como base compartilhada quando fizer sentido, sem misturar codigo dentro de `RENOMEADOR/`.
+Bloqueios atuais para fazer o `VERIFICAR TUDO` passar:
+
+1. Nenhum bloqueio conhecido por `HTTP 404` do ADN. Essa resposta agora encerra a
+   varredura do CNPJ/NSU como ausencia natural de lote/documento.
+
+Limites atuais:
+
+- PDF ainda depende da API DANFSe como caminho principal, que e instavel e tem prazo externo
+  de suspensao informado para 01/07/2026.
+- O gerador local de DANFSe a partir do XML ainda nao foi implementado.
+- Ainda falta painel operacional tecnico do `IMPORT API PN` com arquivos de health/alerta.
+- O controle persistente de progresso por empresa/NSU ainda precisa ser separado do loop
+  bruto de reconciliacao.
+
+Documentacao canonica do modulo:
+
+- `IMPORT API PN/AGENTS.md`
+- `IMPORT API PN/PLANO_GERADOR_DANFSE_LOCAL.md`, apenas para a proxima feature de PDF local.
+
+## Mapa logico
+
+O fluxo humano do sistema esta desenhado em `docs/operacao/MAPA_LOGICO_SISTEMA.md`.
+Use esse mapa para revisar a linha do tempo antes de mexer em painel, reconciliacao,
+DMS, entrada REST ou RENOMEADOR.
+
+## Estado do painel
+
+`painel.py` e o painel atual.
+
+Controles operacionais:
+
+- `Mes de atuacao`: campo `AAAA-MM` que controla o `--mes` do importador.
+- `Automatico: mes vigente`: ligado por padrao; ao ligar o sistema, atualiza o campo
+  para o mes atual. Em 12/05/2026, por exemplo, usa `2026-05`.
+- `LIGAR SISTEMA` / `DESLIGAR SISTEMA`: mesmo botao alterna o estado do painel.
+- `TESTAR AGORA`: roda uma reconciliacao imediata usando o mesmo mes de atuacao.
+- `VERIFICAR TUDO`: confere JARs, chama `IMPORT API PN verificar-tudo` com o mesmo
+  `--mes`, `--ambiente`, `--nsu` e `--max-lotes` usados ao ligar, consulta o Portal
+  em modo somente leitura e simula a reconciliacao contra o destino real. Nao publica
+  XML/PDF, nao baixa DANFSe, nao move arquivo e nao altera ledger. Depois atualiza o
+  YAML do RENOMEADOR com todos os meses e roda `RENOMEADOR config preflight --mes`.
+- O painel so registra verificacao valida para ligar quando o resultado final e `OK`
+  ou `ATENCAO` para os mesmos parametros. Se mes/ambiente/NSU/max-lotes mudarem, exige
+  nova verificacao. `TUDO OK` so aparece quando todos os comandos retornam `OK`; se
+  `max-lotes` truncar a simulacao, o resultado e `ATENCAO`.
+- Apos cada `reconciliar`, o painel resume o resultado real. Ele nao promete janela fixa
+  de 05h/12h/17h porque o modo atual e continuo. Quando a rodada reimporta `0`
+  documentos e o health do RENOMEADOR nao tem `total`, `revisar` nem `erros`, a primeira
+  rodada vazia apenas confirma a estabilidade; a segunda rodada vazia declara tudo
+  conferido e informa a proxima conferencia pelo intervalo real do painel.
+
+Observacao atual: com a planilha e os certificados presentes nesta maquina, o bloqueio
+conhecido anterior do `HTTP 404` do ADN foi tratado como parada natural da varredura.
+
+Comando:
+
+```bash
+python3 painel.py
+```
+
+Variaveis opcionais:
+
+```bash
+ALTOMACAO_ROOT="/caminho/do/projeto"
+ALTOMACAO_AMBIENTE=PRODUCAO
+ALTOMACAO_INTERVALO_SEGUNDOS=60
+ALTOMACAO_NSU_INICIAL=1
+ALTOMACAO_MAX_LOTES_RECONCILIACAO=500
+```
+
+Atalhos antigos em `PAINEL/` foram removidos da base porque duplicavam comportamento e
+podiam chamar fluxo antigo.
+
+## Proximas correcoes
+
+Ordem recomendada:
+
+1. Implementar gerador local de DANFSe a partir do XML.
+2. Criar controle persistente de progresso por empresa/NSU e politica de retomada.
+3. Criar painel/health tecnico do `IMPORT API PN`.
+4. Refatorar classes grandes com teste dedicado antes: `InvoiceProcessingPipeline`,
+   `ExcelCompanyImporter`, `ExcelWorkbookPreparer` e `AppImportadorPn`.
+5. Fazer teste assistido pelo painel: apagar arquivos finais, ligar o painel e confirmar
+   recomposicao por destino real.
+
+## Documentacao consolidada ou obsoleta
+
+Documentos que nao devem mais ser tratados como fonte viva:
+
+- `AUDITORIA_RISCOS_RENOMEADOR.md`: a auditoria antiga virou historico; as regras vivas
+  do RENOMEADOR estao em `RENOMEADOR/AGENTS.md` e
+  `RENOMEADOR/DOCUMENTACAO_RENOMEADOR_NFSE.md`.
+- `IMPORT API PN/PLANO_IMPORTACAO_NFSE_PORTAL_NACIONAL.md`,
+  `IMPORT API PN/REVISAO_CRITICA_PLANO_IMPORTACAO.md`,
+  `IMPORT API PN/PESQUISA_PROBLEMAS_API_PORTAL_NACIONAL.md` e
+  `IMPORT API PN/PLANO_TESTES_HOMOLOGACAO_PRODUCAO.md`: serviram para pesquisa e plano
+  inicial, mas foram substituidos por `IMPORT API PN/AGENTS.md`, por este estado atual,
+  por `REGRAS_INVARIANTES.md` e pelo codigo/testes do importador.
+- `PLANO_MELHORIA_VERIFICAR_TUDO.md`: manter apenas como historico do plano e das fases.
+  Para estado operacional atual do botao, usar este `SITUACAO_ATUAL.md`.
+- `docs/referencias/planilha/*`: referencias visuais antigas da planilha nao fazem parte
+  do baseline operacional. A planilha viva e `PLANILHA_FISCAL.xlsm`.
+
+## Validacao esperada
+
+Use a partir da raiz:
+
+```bash
+mvn -Dmaven.repo.local=/tmp/m2-nfse test
+mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR verify -Pintegration
+python3 -m py_compile painel.py test_painel.py
+python3 -m pytest test_painel.py -q
+```

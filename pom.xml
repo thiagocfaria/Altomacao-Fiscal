@@ -11,6 +11,7 @@
 
     <modules>
         <module>RENOMEADOR</module>
+        <module>IMPORT API PN</module>
     </modules>
 
     <profiles>

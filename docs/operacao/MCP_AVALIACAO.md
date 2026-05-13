@@ -18,8 +18,8 @@ Se houver conflito entre este doc e a config, este doc manda.
 
 | Ferramenta | Estado | Motivo |
 |---|---|---|
-| `jdtls-lsp@claude-plugins-official` v1.0.0 | **ativo** (somente neste projeto) | LSP Java (Eclipse JDT.LS); navegacao de tipo, diagnostico, refactor para .java |
-| `codebase-memory-mcp` | **ativo** (global, ja instalado e ja usado neste projeto) | Grafo de chamadas e dependencias para orientar navegacao e impacto |
+| `jdtls-lsp@claude-plugins-official` v1.0.0 | **operacional com JDK 21 local** (somente neste projeto) | LSP Java (Eclipse JDT.LS); navegacao de tipo, diagnostico, refactor para .java |
+| `codebase-memory-mcp` | **operacional no chat codex-tulio; confirmar por sessao** (global) | Grafo de chamadas e dependencias para orientar navegacao e impacto |
 | `rust-analyzer-lsp@claude-plugins-official` | **nao ativo aqui** (global, mas e Rust — sem efeito em .java) | Pertence ao projeto INTERFACE, sem impacto aqui |
 | `lemminx-lsp` (XML) | **candidato prioritario para IMPORT API PN** | XML/XSD de NFS-e virou parte central do projeto; avaliar antes de implementar validacao XML e geracao/organizacao XML+PDF |
 
@@ -98,11 +98,12 @@ Use sempre as mesmas 4 tarefas de referencia:
 
 ## Skills do projeto
 
-Estado em 08/05/2026:
+Estado em 11/05/2026:
 
-- Nao ha skill local nova aprovada para `IMPORT API PN`.
+- Nao ha skill local nova aprovada para `IMPORT API PN` ou `RENOMEADOR`.
 - As regras atuais sao especificas deste projeto e devem continuar nos documentos do modulo e no `AGENTS.md`/documentacao do RENOMEADOR.
 - Criar skill so fara sentido depois que o fluxo XML+PDF estiver implementado, testado e repetitivo.
+- Neste chat `codex-thiago`, as skills de sistema do Codex e as skills `superpowers` estao disponiveis; elas sao ambiente de desenvolvimento, nao regra versionada do projeto.
 
 Possiveis skills futuras, se o fluxo se estabilizar:
 
@@ -146,14 +147,23 @@ Decisao atual: nao criar agora, para evitar duplicar regra ainda em desenho.
 - Como desligar: remover `"jdtls-lsp@claude-plugins-official": true` de `.claude/settings.json`
 - Como limpar: `rm -rf /tmp/jdtls*`; nao afeta arquivos do projeto
 
-**Status de instalacao:**
+**Status de instalacao verificado em 10/05/2026:**
 - Plugin instalado: sim (`claude plugin install jdtls-lsp@claude-plugins-official`)
 - Binario jdtls instalado: sim (`/home/u/.local/bin/jdtls` a partir de `/home/u/.local/share/jdtls/`)
-- Java 17 disponivel: sim (`/usr/lib/jvm/java-17-openjdk-amd64`)
+- Java 17 disponivel: sim (`openjdk version "17.0.18"`)
+- Java 21 disponivel para o `jdtls`: sim, via JDK local em `/home/u/.local/share/jdks/jdk-21-local/usr/lib/jvm/java-21-openjdk-amd64`
 - Habilitado neste projeto: sim (`.claude/settings.json`)
 - Desativado globalmente: sim (settings do usuario tem `"jdtls-lsp": false`)
 
-**Bake-off:** concluido para o uso atual — projeto Java indexado e consultas de arquitetura/codigo disponiveis via MCP.
+**Status operacional atual:** operacional com ressalva. O wrapper
+`/home/u/.local/bin/jdtls` define `JAVA_HOME` para o JDK 21 local e usa diretorios em
+`/tmp` para configuracao/dados do servidor. O `java` global continua Java 17 para
+Maven/comandos do projeto. Em 12/05/2026, `jdtls --version` iniciou o servidor e nao
+encerrou sozinho nesta sessao Codex; para evitar processo pendurado, ele foi encerrado
+manualmente. Tratar como LSP disponivel para navegacao, mas nao usar esse comando como
+check automatizado sem `timeout`.
+
+**Bake-off:** concluido para MCP/codebase-memory em momento anterior. Reavaliar LSP Java em mudanca relevante de versao.
 **Proximo gatilho de reavaliacao:** mudanca relevante de arquitetura, troca de versao do jdtls ou falha recorrente do LSP/MCP.
 
 ---
@@ -162,9 +172,39 @@ Decisao atual: nao criar agora, para evitar duplicar regra ainda em desenho.
 
 **Tipo:** MCP servidor local
 **Escopo:** user global (configurado fora deste projeto)
-**Status:** ativo globalmente, projeto ja indexado.
+**Status:** configurado globalmente; operacional no chat `codex-tulio` verificado em
+12/05/2026. Confirmar por sessao com `index_status` antes de confiar.
+
+**Status de sessao Codex verificado em 11/05/2026:**
+- Config global Codex: `/home/u/.codex/config.toml` contem `mcp_servers.codebase-memory-mcp`.
+- Config desta conta Codex: `/home/u/.codex-contas/thiago/config.toml` confia neste projeto, mas nao declara MCP proprio.
+- Recursos MCP expostos na sessao: `list_mcp_resources` e `list_mcp_resource_templates` retornaram vazio. Isso e esperado para servidores que expoem ferramentas, mas nao prova que as ferramentas estejam usaveis pelo chat.
+- `codebase-memory-mcp cli list_projects` lista este projeto, porem com `nodes=0` e `edges=0`.
+- Tentativa de `index_repository` em 11/05/2026, apos ajustar `.cbmignore`, descobriu 182 arquivos e extraiu 2474 nos/7548 arestas, mas terminou com `status:error` na fase `dump`.
+
+**Status de sessao Codex verificado em 12/05/2026 no `codex-tulio`:**
+
+- `CODEX_HOME=/home/u/.codex-contas/tulio codex mcp list` mostra
+  `codebase-memory-mcp` como `enabled`.
+- `index_status` do MCP da sessao mostra este projeto com `status=ready`,
+  `nodes=2676` e `edges=8704`.
+- `search_graph` localizou simbolos reais em `IMPORT API PN/` e `RENOMEADOR/`.
+- O CLI direto do `codebase-memory-mcp` pode retornar estado vazio/stale; para trabalho
+  dentro do chat, valide pelo MCP exposto na propria sessao.
+
+**Status operacional atual:** o MCP deve ser usado para orientacao de grafo quando
+`index_status` da sessao estiver `ready`. Continue confirmando decisoes de comportamento
+com codigo, `rg` e testes Maven.
+
+**Status de sessao Codex verificado em 12/05/2026 neste chat:**
+
+- `list_projects` mostrou este projeto com `nodes=2902` e `edges=9618`.
+- `index_status` respondeu `status=ready`.
+- `search_graph` localizou o fluxo atual do `VERIFICAR TUDO`, incluindo
+  `PrevooVerificarTudo`, `SimuladorReconciliacaoDryRun`,
+  `ReconciliadorPortalDestino` e `painel.comando_verificar_tudo`.
 
 **Nota de uso:**
 - Reindexar este projeto apos mudancas relevantes de codigo Java
 - Usar `index_repository` apontando para a raiz deste repositorio
-- O `.cbmignore` deste diretorio exclui os PDFs de amostra do grafo
+- O `.cbmignore` deste diretorio exclui PDFs de amostra, builds, caches, planilhas e artefatos operacionais do grafo

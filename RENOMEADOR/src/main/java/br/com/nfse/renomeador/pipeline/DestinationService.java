@@ -68,7 +68,16 @@ public final class DestinationService {
 
     public DestinationResult sendToMissingCustomer(Path source, ResolvedCompanyPath companyPath, String fileName,
                                                    boolean preserveInput, DocumentType documentType) throws IOException {
-        Path directory = documentType.folderUnder(companyPath.root()).resolve(MISSING_CUSTOMER_FOLDER);
+        return sendToMissingCustomer(source, companyPath, fileName, preserveInput, documentType,
+                CompanyRouteDirectory.single(companyPath));
+    }
+
+    public DestinationResult sendToMissingCustomer(Path source, ResolvedCompanyPath companyPath, String fileName,
+                                                   boolean preserveInput, DocumentType documentType,
+                                                   CompanyRouteDirectory routes) throws IOException {
+        Path directory = companyPath.company().sourceOnly()
+                ? TechnicalPaths.review(routes, companyPath)
+                : documentType.folderUnder(companyPath.root()).resolve(MISSING_CUSTOMER_FOLDER);
         return sendToDirectory(source, directory, fileName, preserveInput);
     }
 

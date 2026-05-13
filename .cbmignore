@@ -4,3 +4,22 @@ RENOMEADOR/src/test/resources/nfse-modelos/
 
 # Docs operacionais e de especificacao (nao sao codigo)
 docs/operacao/
+
+# Artefatos de build/cache
+target/
+**/target/
+__pycache__/
+**/__pycache__/
+
+# Artefatos operacionais, dados reais e saidas tecnicas
+RENOMEADOR/operacao/
+IMPORT API PN/backend/
+PAINEL/
+GIT ANIMADO/
+.claude/scheduled_tasks.lock
+
+# Planilhas e backups binarios nao ajudam o grafo de codigo
+*.xls
+*.xlsx
+*.xlsm
+*.backup-*

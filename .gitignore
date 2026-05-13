@@ -1,13 +1,20 @@
 .codex
 .worktrees/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 target/
 backend/
 RENOMEADOR/operacao/
+IMPORT API PN/backend/
+PAINEL/
+GIT ANIMADO/
+__pycache__/
 *.class
 *.log
 *.tmp
+*.pyc
 .DS_Store
 empresas.yaml
 ~$*
 .~lock.*#
+PLANILHA_FISCAL.backup-*.xlsm

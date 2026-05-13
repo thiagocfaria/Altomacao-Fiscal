@@ -128,6 +128,27 @@ class ExcelCompanyImporterTest {
     }
 
     @Test
+    void importAllMonthsKeepsSingleTechnicalRestInputWhenRepeatedAcrossMonthlySheets() throws Exception {
+        Path globalRest = Files.createDirectories(tempDir.resolve("entrada-rest-global"));
+        Path aprilFolder = Files.createDirectories(tempDir.resolve("abril-cliente"));
+        Path mayFolder = Files.createDirectories(tempDir.resolve("maio-cliente"));
+        Path workbook = monthlyCadastroWorkbookWithTechnicalRest(globalRest, aprilFolder, mayFolder);
+        Path output = tempDir.resolve("empresas-todos-meses.yaml");
+
+        new ExcelCompanyImporter().importAllMonthsToYaml(workbook, output, true,
+                LocalDate.of(2026, 5, 10));
+
+        var companies = new CompanyRegistryLoader().load(output).companies();
+        assertThat(companies).filteredOn(company -> company.sourceOnly()).hasSize(1);
+        assertThat(companies).filteredOn(company -> company.sourceOnly()).first()
+                .extracting(company -> company.basePath())
+                .isEqualTo(globalRest);
+        assertThat(companies).filteredOn(company -> !company.sourceOnly())
+                .extracting(company -> company.basePath())
+                .containsExactly(aprilFolder, mayFolder);
+    }
+
+    @Test
     void skipsSourceOnlyRowsWithoutPathInMonthlyCadastro() throws Exception {
         Path activeFolder = Files.createDirectories(tempDir.resolve("maio-ativo"));
         Path workbook = monthlyCadastroWorkbookWithRows(
@@ -475,6 +496,40 @@ class ExcelCompanyImporterTest {
             wb.write(out);
         }
         return workbook;
+    }
+
+    private Path monthlyCadastroWorkbookWithTechnicalRest(Path globalRest, Path aprilPath, Path mayPath)
+            throws Exception {
+        Path workbook = tempDir.resolve("cadastro-mensal-origem-tecnica.xlsm");
+        try (XSSFWorkbook wb = new XSSFWorkbook(); OutputStream out = Files.newOutputStream(workbook)) {
+            monthlySheetWithTechnicalRest(wb, "CADASTRO ABRIL", globalRest, aprilPath,
+                    "Cliente Abril", "25.014.360/0001-73");
+            monthlySheetWithTechnicalRest(wb, "CADASTRO MAIO", globalRest, mayPath,
+                    "Cliente Maio", "26.474.286/0002-11");
+            wb.write(out);
+        }
+        return workbook;
+    }
+
+    private static void monthlySheetWithTechnicalRest(XSSFWorkbook wb, String sheetName, Path globalRest,
+                                                       Path restPath, String cliente, String cnpj) {
+        Sheet sheet = wb.createSheet(sheetName);
+        sheet.createRow(0).createCell(0).setCellValue(sheetName);
+        Row header = sheet.createRow(1);
+        header.createCell(0).setCellValue("CLIENTE");
+        header.createCell(3).setCellValue("CNPJ");
+        header.createCell(17).setCellValue("CAMINHO REST\n(COLE OU SELECIONE A PASTA)");
+        header.createCell(22).setCellValue("SOMENTE ORIGEM");
+
+        Row origem = sheet.createRow(2);
+        origem.createCell(0).setCellValue("IMPORT API PN ENTRADA REST");
+        origem.createCell(17).setCellValue(globalRest.toString());
+        origem.createCell(22).setCellValue("SIM");
+
+        Row empresa = sheet.createRow(3);
+        empresa.createCell(0).setCellValue(cliente);
+        empresa.createCell(3).setCellValue(cnpj);
+        empresa.createCell(17).setCellValue(restPath.toString());
     }
 
     private static void monthlySheet(XSSFWorkbook wb, String sheetName, String restPath) {

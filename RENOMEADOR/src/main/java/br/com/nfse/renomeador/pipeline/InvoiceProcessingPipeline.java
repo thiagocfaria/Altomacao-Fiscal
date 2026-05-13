@@ -31,10 +31,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class InvoiceProcessingPipeline {
     public static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
     public static final int MAX_PAGE_COUNT = 80;
+    private static final Pattern IMPORT_API_PN_FILE_NAME =
+            Pattern.compile("^PN_(\\d{14})_NSU_.*\\.(?i:xml|pdf)$");
 
     private final StableFileGuard stableFileGuard;
     private final FileHashService hashService;
@@ -192,26 +196,46 @@ public final class InvoiceProcessingPipeline {
         InvoiceData invoice;
         if (extraction.invoice().isPresent()) {
             invoice = extraction.invoice().orElseThrow();
-            boolean wrongTaxId = shouldResolveByCustomerTaxId(invoice, companyPath);
-            boolean wrongMonth = !wrongTaxId && shouldRerouteByEmissionMonth(invoice, companyPath);
-            if (wrongTaxId || wrongMonth) {
+            Optional<String> importApiPnOwner = importApiPnOwnerTaxId(originalSource);
+            if (importApiPnOwner.isPresent()) {
                 Optional<YearMonth> emissionMonth = parseEmissionMonth(invoice.issueDate());
                 Optional<ResolvedCompanyPath> target = emissionMonth.isPresent()
-                        ? routes.activePathForCustomerTaxIdAndMonth(invoice.customerTaxId(), emissionMonth.get())
-                        : routes.activePathForCustomerTaxId(invoice.customerTaxId());
+                        ? routes.activePathForCustomerTaxIdAndMonth(importApiPnOwner.orElseThrow(), emissionMonth.get())
+                        : routes.activePathForCustomerTaxId(importApiPnOwner.orElseThrow());
                 if (target.isPresent() && !target.get().equals(companyPath)) {
                     return processSingle(workFile, originalSource, target.get(), preserveInput, documentType, routes);
                 }
-                String reason = wrongMonth
-                        ? "Caminho REST do mes " + emissionMonth.map(YearMonth::toString).orElse("desconhecido") + " nao configurado na planilha"
-                        : "Tomador nao encontrado com caminho REST ativo no Excel";
-                String fileName = fileNameBuilder.buildMissingCustomerPath(invoice, documentType.extension());
-                DestinationResult destination = destinationService.sendToMissingCustomer(workFile, companyPath,
-                        fileName, preserveInput, documentType);
-                return FileProcessingResult.processed(companyPath.company().id(), originalSource,
-                        ProcessingStatus.WRONG_COMPANY, reason, destination.destination());
+                if (target.isEmpty()) {
+                    String fileName = fileNameBuilder.buildMissingCustomerPath(invoice, documentType.extension());
+                    DestinationResult destination = destinationService.sendToMissingCustomer(workFile, companyPath,
+                            fileName, preserveInput, documentType, routes);
+                    return FileProcessingResult.processed(companyPath.company().id(), originalSource,
+                            ProcessingStatus.WRONG_COMPANY,
+                            "CNPJ da consulta PN sem caminho REST ativo no Excel", destination.destination());
+                }
+            } else {
+                boolean wrongTaxId = shouldResolveByCustomerTaxId(invoice, companyPath);
+                boolean wrongMonth = !wrongTaxId && shouldRerouteByEmissionMonth(invoice, companyPath);
+                if (wrongTaxId || wrongMonth) {
+                    Optional<YearMonth> emissionMonth = parseEmissionMonth(invoice.issueDate());
+                    Optional<ResolvedCompanyPath> target = emissionMonth.isPresent()
+                            ? routes.activePathForCustomerTaxIdAndMonth(invoice.customerTaxId(), emissionMonth.get())
+                            : routes.activePathForCustomerTaxId(invoice.customerTaxId());
+                    if (target.isPresent() && !target.get().equals(companyPath)) {
+                        return processSingle(workFile, originalSource, target.get(), preserveInput, documentType, routes);
+                    }
+                    String reason = wrongMonth
+                            ? "Caminho REST do mes " + emissionMonth.map(YearMonth::toString).orElse("desconhecido") + " nao configurado na planilha"
+                            : "Tomador nao encontrado com caminho REST ativo no Excel";
+                    String fileName = fileNameBuilder.buildMissingCustomerPath(invoice, documentType.extension());
+                    DestinationResult destination = destinationService.sendToMissingCustomer(workFile, companyPath,
+                            fileName, preserveInput, documentType, routes);
+                    return FileProcessingResult.processed(companyPath.company().id(), originalSource,
+                            ProcessingStatus.WRONG_COMPANY, reason, destination.destination());
+                }
             }
-            decision = new ProcessingDecisionService(companyPath.company().customerTaxId()).decide(invoice);
+            decision = new ProcessingDecisionService(companyPath.company().customerTaxId(),
+                    importApiPnOwner.isPresent()).decide(invoice);
             if (decision.status() == ProcessingStatus.OK) {
                 DuplicateCheck duplicate = handleFiscalDuplicate(workFile, originalSource, companyPath, invoice,
                         preserveInput, documentType, routes);
@@ -295,11 +319,29 @@ public final class InvoiceProcessingPipeline {
                                                                                 LayoutType layout) throws IOException {
         for (DuplicateInvoiceIndex index : indexes) {
             var current = index.find(companyId, fiscalKey, layout);
-            if (current.isPresent()) {
+            if (current.isPresent() && destinoExisteNoDisco(current.orElseThrow())) {
                 return current;
             }
         }
-        return legacyIndex.find(companyId, fiscalKey, layout);
+        var legacy = legacyIndex.find(companyId, fiscalKey, layout);
+        if (legacy.isPresent() && destinoExisteNoDisco(legacy.orElseThrow())) {
+            return legacy;
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * Verifica se o arquivo destino registrado no indice de duplicatas ainda existe.
+     * Se foi apagado manualmente (ou por outro processo), nao consideramos mais como
+     * duplicata - o arquivo precisa ser reprocessado para reaparecer no destino.
+     * Isso evita o bug de "tudo virou duplicata" depois que alguem limpa as pastas REST.
+     */
+    private static boolean destinoExisteNoDisco(DuplicateInvoiceIndex.Entry entrada) {
+        Path destino = entrada.destination();
+        if (destino == null || destino.toString().isBlank()) {
+            return false;
+        }
+        return Files.exists(destino);
     }
 
     private static void discardWorkFile(Path workFile, boolean preserveInput) throws IOException {
@@ -377,6 +419,15 @@ public final class InvoiceProcessingPipeline {
 
     private static boolean shouldResolveByCustomerTaxId(InvoiceData invoice, ResolvedCompanyPath companyPath) {
         return companyPath.company().sourceOnly() || isWrongFolder(invoice, companyPath);
+    }
+
+    private static Optional<String> importApiPnOwnerTaxId(Path source) {
+        String fileName = source.getFileName() == null ? "" : source.getFileName().toString();
+        Matcher matcher = IMPORT_API_PN_FILE_NAME.matcher(fileName);
+        if (!matcher.matches()) {
+            return Optional.empty();
+        }
+        return Optional.of(matcher.group(1));
     }
 
     private static String fiscalDuplicateKey(InvoiceData invoice) {

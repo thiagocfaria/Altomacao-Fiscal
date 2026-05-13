@@ -48,6 +48,13 @@ class AppCliTest {
     }
 
     @Test
+    void cliParsesConfigPreflightHelp() {
+        int exitCode = new CommandLine(new App.Cli()).execute("config", "preflight", "--help");
+
+        assertThat(exitCode).isZero();
+    }
+
+    @Test
     void cliParsesMaintenanceCleanupHelp() {
         int exitCode = new CommandLine(new App.Cli()).execute("manutencao", "limpar-tecnicos", "--help");
 
@@ -104,5 +111,85 @@ class AppCliTest {
                 .contains("ERRO:")
                 .contains("CNPJ invalido")
                 .doesNotContain("at br.com");
+    }
+
+    @Test
+    void configPreflightAprovaConfiguracaoValida(@TempDir Path tempDir) throws Exception {
+        Path config = validConfig(tempDir);
+        StringWriter out = new StringWriter();
+        CommandLine commandLine = App.commandLine();
+        commandLine.setOut(new PrintWriter(out));
+
+        int exitCode = commandLine.execute("config", "preflight", "--config", config.toString(),
+                "--mes", "2026-05");
+
+        assertThat(exitCode).isZero();
+        assertThat(out.toString())
+                .contains("PREFLIGHT RENOMEADOR")
+                .contains("Status: OK")
+                .contains("Watch registravel: SIM");
+    }
+
+    @Test
+    void configPreflightFalhaComLockOcupado(@TempDir Path tempDir) throws Exception {
+        Path config = validConfig(tempDir);
+        try (br.com.nfse.renomeador.app.ApplicationLock ignored =
+                     br.com.nfse.renomeador.app.ApplicationLock.acquire(config)) {
+            int exitCode = App.commandLine().execute("config", "preflight", "--config", config.toString(),
+                    "--mes", "2026-05");
+
+            assertThat(exitCode).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void configPreflightFalhaComEntradaTecnicaInvalida(@TempDir Path tempDir) throws Exception {
+        Path config = tempDir.resolve("empresas.yaml");
+        Files.writeString(config, """
+                empresas:
+                  - id: origem_import_api_pn
+                    habilitada: true
+                    somenteOrigem: true
+                    cnpjTomador: "123"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s"
+                    pastas:
+                      entrada: "entrada-inexistente"
+                """.formatted(tempDir.toString().replace("\\", "/")));
+
+        int exitCode = App.commandLine().execute("config", "preflight", "--config", config.toString(),
+                "--mes", "2026-05");
+
+        assertThat(exitCode).isEqualTo(2);
+    }
+
+    private static Path validConfig(Path tempDir) throws Exception {
+        Path origem = Files.createDirectories(tempDir.resolve("entrada-rest"));
+        Path destino = Files.createDirectories(tempDir.resolve("destino"));
+        Path backend = tempDir.resolve("backend");
+        Path config = tempDir.resolve("empresas.yaml");
+        Files.writeString(config, """
+                backendRoot: "%s"
+                empresas:
+                  - id: origem_import_api_pn
+                    habilitada: true
+                    somenteOrigem: true
+                    cnpjTomador: "123"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s"
+                    pastas:
+                      entrada: "."
+                  - id: empresa_a
+                    habilitada: true
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s"
+                    pastas:
+                      entrada: "."
+                """.formatted(
+                backend.toString().replace("\\", "/"),
+                origem.toString().replace("\\", "/"),
+                destino.toString().replace("\\", "/")));
+        return config;
     }
 }

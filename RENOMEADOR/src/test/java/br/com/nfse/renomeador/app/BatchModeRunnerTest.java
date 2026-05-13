@@ -162,6 +162,9 @@ class BatchModeRunnerTest {
         Files.copy(samplePdf("NF 9 OK.pdf"), pdf);
         Path config = writeConfig("25.014.360/0001-73");
         String hash = new br.com.nfse.renomeador.files.FileHashService().sha256(pdf);
+        Path destination = tempDir.resolve("PDF").resolve("processados").resolve("NFSE_9.pdf");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, "processado");
         Path oldLedger = backendCompany("empresa_piloto").resolve("2026-04").resolve("processados.idx");
         Files.createDirectories(oldLedger.getParent());
         Files.writeString(oldLedger, String.join("\t",
@@ -171,14 +174,14 @@ class BatchModeRunnerTest {
                 Instant.parse("2026-04-30T12:00:00Z").toString(),
                 hash,
                 "OK",
-                tempDir.resolve("PDF").resolve("processados").resolve("NFSE_9.pdf").toString(),
+                destination.toString(),
                 Instant.parse("2026-04-30T12:01:00Z").toString()
         ) + System.lineSeparator());
 
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), true);
 
         assertThat(summary.skipped()).isEqualTo(1);
-        assertThat(tempDir.resolve("PDF").resolve("processados")).doesNotExist();
+        assertThat(destination).exists();
     }
 
     @Test
@@ -281,6 +284,41 @@ class BatchModeRunnerTest {
         assertThat(sourceInput.resolve("NF 9 OK.pdf")).doesNotExist();
         assertThat(Files.readString(operationalLog("empresa_correta")))
                 .contains("SUMMARY\ttotal=1\tok=1");
+    }
+
+    @Test
+    void batchRoutesImportApiPnXmlByQueryCnpjFromFileName() throws Exception {
+        Path sourceInput = Files.createDirectories(tempDir.resolve("origem_generica").resolve("entrada"));
+        Path providerRoot = tempDir.resolve("empresa_prestadora");
+        Files.createDirectories(providerRoot.resolve("entrada"));
+        Files.createDirectories(tempDir.resolve("empresa_correta").resolve("entrada"));
+        Files.writeString(sourceInput.resolve("PN_26474286000211_NSU_123_202604.xml"),
+                portalNacionalXmlPrestadorPowerTomadorDga());
+        Path config = writeSourceOnlyProviderConfig();
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(xmlNames(providerRoot.resolve("XML").resolve("processados")))
+                .containsExactly("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.xml");
+        assertThat(tempDir.resolve("empresa_correta").resolve("XML").resolve("processados")).doesNotExist();
+        assertThat(sourceInput.resolve("PN_26474286000211_NSU_123_202604.xml")).doesNotExist();
+    }
+
+    @Test
+    void batchKeepsUnroutableSourceOnlyFileInBackendReviewInsteadOfEntryRest() throws Exception {
+        Path sourceRoot = tempDir.resolve("origem_generica");
+        Path sourceInput = Files.createDirectories(sourceRoot.resolve("entrada"));
+        Files.copy(samplePdf("NF 9 OK.pdf"), sourceInput.resolve("NF 9 OK.pdf"));
+        Path config = writeSourceOnlyWithoutTargetConfig();
+
+        var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
+
+        assertThat(summary.count(ProcessingStatus.WRONG_COMPANY)).isEqualTo(1);
+        assertThat(sourceRoot.resolve("PDF").resolve("TOMADOR NAO ENCONTRADO")).doesNotExist();
+        assertThat(sourceInput.resolve("NF 9 OK.pdf")).doesNotExist();
+        assertThat(backendCompany("origem_generica").resolve("revisar"))
+                .isDirectoryContaining(path -> path.getFileName().toString().contains("25014360000173"));
     }
 
     @Test
@@ -676,6 +714,11 @@ class BatchModeRunnerTest {
                 """;
     }
 
+    private static String portalNacionalXmlPrestadorPowerTomadorDga() {
+        return portalNacionalXml()
+                .replace("<CNPJ>11111111000111</CNPJ>", "<CNPJ>26474286000211</CNPJ>");
+    }
+
     private static String abrasfDuplicateText() {
         return """
                 NFS-e Nota Fiscal
@@ -790,6 +833,79 @@ class BatchModeRunnerTest {
                 """.formatted(
                 tempDir.toString().replace("\\", "/"),
                 tempDir.toString().replace("\\", "/")));
+        return config;
+    }
+
+    private Path writeSourceOnlyProviderConfig() throws Exception {
+        Path config = tempDir.resolve("empresas_origem_pn.yaml");
+        Files.writeString(config, """
+                empresas:
+                  - id: origem_generica
+                    habilitada: true
+                    somenteOrigem: true
+                    cnpjTomador: ""
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/origem_generica"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                  - id: empresa_prestadora
+                    habilitada: true
+                    cnpjTomador: "26.474.286/0002-11"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/empresa_prestadora"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                  - id: empresa_correta
+                    habilitada: true
+                    cnpjTomador: "25.014.360/0001-73"
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/empresa_correta"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                """.formatted(
+                tempDir.toString().replace("\\", "/"),
+                tempDir.toString().replace("\\", "/"),
+                tempDir.toString().replace("\\", "/")));
+        return config;
+    }
+
+    private Path writeSourceOnlyWithoutTargetConfig() throws Exception {
+        Path config = tempDir.resolve("empresas_origem_sem_destino.yaml");
+        Files.writeString(config, """
+                empresas:
+                  - id: origem_generica
+                    habilitada: true
+                    somenteOrigem: true
+                    cnpjTomador: ""
+                    estrategiaMes: "direto"
+                    pastaBase: "%s/origem_generica"
+                    pastas:
+                      entrada: "entrada"
+                      processados: "processados"
+                      revisar: "revisar"
+                      originais: "originais"
+                      logs: "logs"
+                      canceladas: "revisar/canceladas"
+                      ledger: "logs/processados.idx"
+                """.formatted(tempDir.toString().replace("\\", "/")));
         return config;
     }
 

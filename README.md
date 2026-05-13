@@ -8,8 +8,9 @@ Projeto de automacoes fiscais separado por modulos.
 |---|---|
 | `PLANILHA_FISCAL.xlsm` | cadastro compartilhado de clientes, certificados e caminhos |
 | `RENOMEADOR/` | modulo de renomear, separar e organizar PDFs/XMLs de NFS-e |
-| `docs/referencias/planilha/` | referencias visuais da planilha compartilhada |
+| `IMPORT API PN/` | modulo de consultar Portal Nacional/ADN e publicar XML/PDF/DMS |
 | `docs/operacao/` | decisoes sobre ferramentas, MCPs e LSPs |
+| `painel.py` | painel local para verificar, ligar, reconciliar e desligar o fluxo |
 
 ## RENOMEADOR
 
@@ -36,6 +37,22 @@ No Windows, use os scripts em:
 RENOMEADOR\scripts\windows\
 ```
 
+Painel local a partir da raiz:
+
+```bash
+python3 painel.py
+```
+
+Variaveis opcionais do painel:
+
+```bash
+ALTOMACAO_ROOT="/caminho/do/projeto" \
+ALTOMACAO_AMBIENTE=PRODUCAO \
+ALTOMACAO_INTERVALO_SEGUNDOS=60 \
+ALTOMACAO_MAX_LOTES_RECONCILIACAO=500 \
+python3 painel.py
+```
+
 ## Operacao
 
 Para producao inicial do renomeador, use batch conferido:
@@ -49,3 +66,16 @@ Para producao inicial do renomeador, use batch conferido:
 7. rode batch real.
 
 Dados operacionais, logs, backend e YAML gerado nao devem entrar no Git.
+
+## Desenvolvimento assistido por agente
+
+Antes de codar com Codex/Claude, leia:
+
+```text
+AGENTS.md
+docs/operacao/CODING_AGENTES.md
+docs/operacao/ARQUITETURA_PROFISSIONAL.md
+```
+
+Os guias registram a ordem de leitura, os gatilhos automaticos de skills/MCP, o estado
+real de MCP/LSP e os comandos de validacao.

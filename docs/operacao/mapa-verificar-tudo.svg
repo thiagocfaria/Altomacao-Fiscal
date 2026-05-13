@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Mapa simples do botao VERIFICAR TUDO</title>
+  <desc id="desc">Desenho simples mostrando a pessoa abrindo o painel, escolhendo o mes e clicando em VERIFICAR TUDO.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#263238"/>
+    </marker>
+    <style>
+      .bg { fill: #f7fafc; }
+      .title { font: 700 34px Arial, sans-serif; fill: #102a43; }
+      .subtitle { font: 400 18px Arial, sans-serif; fill: #486581; }
+      .box { fill: #ffffff; stroke: #243b53; stroke-width: 3; rx: 18; }
+      .person { fill: #fff7ed; stroke: #c2410c; stroke-width: 3; rx: 18; }
+      .panel { fill: #e0f2fe; stroke: #0369a1; stroke-width: 3; rx: 18; }
+      .action { fill: #dcfce7; stroke: #15803d; stroke-width: 3; rx: 18; }
+      .check { fill: #fef9c3; stroke: #a16207; stroke-width: 3; rx: 18; }
+      .ok { fill: #dcfce7; stroke: #166534; stroke-width: 4; rx: 18; }
+      .warn { fill: #fee2e2; stroke: #b91c1c; stroke-width: 4; rx: 18; }
+      .note { fill: #eef2ff; stroke: #4338ca; stroke-width: 2; rx: 14; }
+      .big { font: 700 22px Arial, sans-serif; fill: #102a43; }
+      .txt { font: 400 17px Arial, sans-serif; fill: #243b53; }
+      .small { font: 400 15px Arial, sans-serif; fill: #486581; }
+      .arrow { stroke: #263238; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #52616b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="900"/>
+
+  <text class="title" x="60" y="60">Desenho simples: abrir o painel e clicar VERIFICAR TUDO</text>
+  <text class="subtitle" x="60" y="92">Este botao so confere se esta tudo pronto. Ele nao importa nota e nao move arquivo.</text>
+
+  <!-- Linha principal -->
+  <rect class="person" x="60" y="140" width="210" height="110"/>
+  <text class="big" x="95" y="180">1. Pessoa</text>
+  <text class="txt" x="92" y="210">roda o comando</text>
+  <text class="small" x="88" y="235">python3 painel.py</text>
+
+  <line class="arrow" x1="270" y1="195" x2="345" y2="195"/>
+
+  <rect class="panel" x="360" y="140" width="210" height="110"/>
+  <text class="big" x="402" y="180">2. Painel</text>
+  <text class="txt" x="405" y="210">abre na tela</text>
+  <text class="small" x="398" y="235">mostra botoes</text>
+
+  <line class="arrow" x1="570" y1="195" x2="645" y2="195"/>
+
+  <rect class="panel" x="660" y="140" width="220" height="110"/>
+  <text class="big" x="696" y="180">3. Mes</text>
+  <text class="txt" x="694" y="210">automatico ou</text>
+  <text class="txt" x="708" y="234">digitado</text>
+
+  <line class="arrow" x1="880" y1="195" x2="955" y2="195"/>
+
+  <rect class="action" x="970" y="140" width="280" height="110"/>
+  <text class="big" x="1014" y="180">4. VERIFICAR TUDO</text>
+  <text class="txt" x="1022" y="212">a pessoa clica</text>
+  <text class="small" x="1010" y="236">comeca a conferencia</text>
+
+  <!-- Mes automatico/manual -->
+  <rect class="note" x="620" y="285" width="300" height="90"/>
+  <text class="big" x="665" y="320">Regra do mes</text>
+  <text class="txt" x="650" y="348">Automatico: mes atual</text>
+  <text class="txt" x="650" y="370">Manual: mes digitado</text>
+  <line class="thin" x1="770" y1="250" x2="770" y2="282"/>
+
+  <!-- Conferencias -->
+  <line class="arrow" x1="1110" y1="250" x2="1110" y2="310"/>
+
+  <rect class="check" x="80" y="430" width="260" height="120"/>
+  <text class="big" x="125" y="465">Confere planilha</text>
+  <text class="txt" x="115" y="497">Olha PLANILHA_FISCAL</text>
+  <text class="small" x="112" y="522">empresas ativas do mes</text>
+  <text class="small" x="112" y="542">entrada REST configurada</text>
+
+  <rect class="check" x="395" y="430" width="260" height="120"/>
+  <text class="big" x="430" y="465">Confere certificado</text>
+  <text class="txt" x="430" y="497">Olha cada empresa</text>
+  <text class="small" x="432" y="522">certificado existe?</text>
+  <text class="small" x="432" y="542">senha resolve?</text>
+
+  <rect class="check" x="710" y="430" width="260" height="120"/>
+  <text class="big" x="752" y="465">Confere Portal</text>
+  <text class="txt" x="745" y="497">Monta a consulta</text>
+  <text class="small" x="740" y="522">nao baixa nota agora</text>
+  <text class="small" x="740" y="542">so mostra o caminho</text>
+
+  <rect class="check" x="1025" y="430" width="260" height="120"/>
+  <text class="big" x="1058" y="465">Confere Renomeador</text>
+  <text class="txt" x="1058" y="497">Le todos os meses</text>
+  <text class="small" x="1055" y="522">gera empresas.yaml</text>
+  <text class="small" x="1055" y="542">valida os caminhos</text>
+
+  <line class="thin" x1="1110" y1="310" x2="210" y2="420"/>
+  <line class="thin" x1="1110" y1="310" x2="525" y2="420"/>
+  <line class="thin" x1="1110" y1="310" x2="840" y2="420"/>
+  <line class="thin" x1="1110" y1="310" x2="1155" y2="420"/>
+
+  <!-- Resultado -->
+  <line class="thin" x1="210" y1="550" x2="610" y2="655"/>
+  <line class="thin" x1="525" y1="550" x2="650" y2="655"/>
+  <line class="thin" x1="840" y1="550" x2="690" y2="655"/>
+  <line class="thin" x1="1155" y1="550" x2="730" y2="655"/>
+
+  <rect class="box" x="545" y="660" width="310" height="95"/>
+  <text class="big" x="625" y="698">Painel junta tudo</text>
+  <text class="txt" x="598" y="728">se algo falhar, mostra atencao</text>
+
+  <line class="arrow" x1="545" y1="708" x2="410" y2="708"/>
+  <line class="arrow" x1="855" y1="708" x2="990" y2="708"/>
+
+  <rect class="warn" x="160" y="655" width="230" height="105"/>
+  <text class="big" x="213" y="695">ATENCAO</text>
+  <text class="txt" x="190" y="725">precisa corrigir</text>
+  <text class="small" x="188" y="748">antes de ligar</text>
+
+  <rect class="ok" x="1010" y="655" width="230" height="105"/>
+  <text class="big" x="1080" y="695">TUDO OK</text>
+  <text class="txt" x="1050" y="725">pode ligar</text>
+  <text class="small" x="1038" y="748">o sistema esta pronto</text>
+
+  <!-- Rodape -->
+  <rect class="note" x="360" y="805" width="680" height="55"/>
+  <text class="big" x="408" y="840">Importante: VERIFICAR TUDO nao importa notas. Ele so confere.</text>
+</svg>

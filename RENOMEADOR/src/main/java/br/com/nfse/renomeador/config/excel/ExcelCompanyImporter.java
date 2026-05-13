@@ -93,6 +93,7 @@ public final class ExcelCompanyImporter {
                     throw e;
                 }
             }
+            allCompanies = deduplicateRepeatedTechnicalSources(allCompanies);
             if (sheetsFound == 0) {
                 // Sem abas CADASTRO: usar fallback de aba unica (compatibilidade com planilhas legadas e testes)
                 List<ImportedCompany> companies = readCompanies(sheet(workbook, null, Optional.empty(), executionDate));
@@ -116,6 +117,24 @@ public final class ExcelCompanyImporter {
         } catch (Exception exception) {
             throw new IllegalArgumentException("Falha ao importar planilha: " + exception.getMessage(), exception);
         }
+    }
+
+    private static List<ImportedCompany> deduplicateRepeatedTechnicalSources(List<ImportedCompany> companies) {
+        List<ImportedCompany> result = new ArrayList<>();
+        java.util.Set<String> technicalSources = new java.util.HashSet<>();
+        for (ImportedCompany company : companies) {
+            if (company.sourceOnly() && company.taxId().isBlank()) {
+                String key = idFor(company.name()) + "|" + company.path().normalize();
+                if (!technicalSources.add(key)) {
+                    continue;
+                }
+                result.add(new ImportedCompany(company.id(), company.name(), company.taxId(),
+                        company.pathMissing(), company.path(), company.sourceOnly(), Optional.empty()));
+                continue;
+            }
+            result.add(company);
+        }
+        return List.copyOf(result);
     }
 
     private static Optional<YearMonth> monthFromSheetName(String name, int year) {

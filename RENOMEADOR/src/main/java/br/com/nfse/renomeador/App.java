@@ -2,6 +2,8 @@ package br.com.nfse.renomeador;
 
 import br.com.nfse.renomeador.app.BatchModeRunner;
 import br.com.nfse.renomeador.app.ApplicationLock;
+import br.com.nfse.renomeador.app.RenomeadorConfigPreflight;
+import br.com.nfse.renomeador.app.ResultadoRenomeadorPreflight;
 import br.com.nfse.renomeador.app.WatchModeRunner;
 import br.com.nfse.renomeador.config.CompanyRegistryLoader;
 import br.com.nfse.renomeador.config.CompanyRegistryValidator;
@@ -12,7 +14,10 @@ import br.com.nfse.renomeador.pipeline.TechnicalRetentionPolicy;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.YearMonth;
@@ -141,7 +146,8 @@ public final class App {
     }
 
     @Command(name = "config", mixinStandardHelpOptions = true, description = "Ferramentas de configuracao.",
-            subcommands = {ImportExcelCommand.class, PrepareExcelCommand.class, CheckConfigCommand.class})
+            subcommands = {ImportExcelCommand.class, PrepareExcelCommand.class, CheckConfigCommand.class,
+                    ConfigPreflightCommand.class})
     public static final class ConfigCommand implements Runnable {
         @Override
         public void run() {
@@ -236,6 +242,44 @@ public final class App {
             new CompanyRegistryValidator().validate(new CompanyRegistryLoader().load(config));
             System.out.println("Configuracao valida");
             return 0;
+        }
+    }
+
+    @Command(name = "preflight", mixinStandardHelpOptions = true,
+            description = "Valida YAML, rotas, lock, backend e registro de watch sem processar arquivos.")
+    public static final class ConfigPreflightCommand implements Callable<Integer> {
+        @Spec
+        CommandSpec spec;
+
+        @Option(names = "--config", required = true, description = "Arquivo empresas.yaml.")
+        Path config;
+
+        @Option(names = "--mes", description = "Mes no formato AAAA-MM para rotas mensais.")
+        String month;
+
+        @Override
+        public Integer call() throws Exception {
+            Optional<YearMonth> mes = Optional.ofNullable(month)
+                    .filter(value -> !value.isBlank())
+                    .map(YearMonth::parse);
+            PrintWriter out = spec.commandLine().getOut();
+            try {
+                ResultadoRenomeadorPreflight resultado = new RenomeadorConfigPreflight().verificar(config, mes);
+                out.println("PREFLIGHT RENOMEADOR");
+                out.println("Status: OK");
+                out.println("Rotas monitoradas: " + resultado.rotasMonitoradas());
+                out.println("Watch registravel: SIM (" + resultado.watchesRegistrados() + ")");
+                out.println("Backend: " + resultado.backendRoot());
+                return 0;
+            } catch (IllegalStateException exception) {
+                if (exception.getMessage() != null && exception.getMessage().contains("Outra instancia")) {
+                    out.println("PREFLIGHT RENOMEADOR");
+                    out.println("Status: LOCK_OCUPADO");
+                    out.println(exception.getMessage());
+                    return 3;
+                }
+                throw exception;
+            }
         }
     }
 

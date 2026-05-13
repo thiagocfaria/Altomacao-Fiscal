@@ -71,19 +71,24 @@ class WatchFolderProcessorTest {
     }
 
     @Test
-    void processesCreatedAndModifiedPdfEventsOnly() throws Exception {
+    void processesCreatedAndModifiedSupportedDocumentEventsOnly() throws Exception {
         ResolvedCompanyPath companyPath = companyPath();
         Path input = tempDir.resolve("entrada");
         Files.createDirectories(input);
         Files.copy(samplePdf("NF 9 OK.pdf"), input.resolve("NF 9 OK.pdf"));
+        Files.writeString(input.resolve("nota.xml"), portalNacionalXml());
         Files.writeString(input.resolve("ignorado.txt"), "nao processar");
 
         var summary = new WatchFolderProcessor().processEvents(input, companyPath, List.of(
                 event(StandardWatchEventKinds.ENTRY_CREATE, Path.of("ignorado.txt")),
+                event(StandardWatchEventKinds.ENTRY_CREATE, Path.of("nota.xml")),
                 event(StandardWatchEventKinds.ENTRY_MODIFY, Path.of("NF 9 OK.pdf"))
         ), true);
 
-        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(1);
+        assertThat(summary.count(ProcessingStatus.OK)).isEqualTo(2);
+        assertThat(tempDir.resolve("XML").resolve("processados"))
+                .isDirectoryContaining(path -> path.getFileName().toString()
+                        .equals("NFSE_123_FORNECEDOR_TESTE_LTDA_02.04.2026_100,00.xml"));
     }
 
     @Test
@@ -185,5 +190,25 @@ class WatchFolderProcessorTest {
         });
         thread.start();
         return thread;
+    }
+
+    private static String portalNacionalXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <NFSe xmlns="http://www.sped.fazenda.gov.br/nfse">
+                  <nNFSe>123</nNFSe>
+                  <dhEmi>2026-04-02T10:15:00-03:00</dhEmi>
+                  <prest>
+                    <CNPJ>11222333000144</CNPJ>
+                    <xNome>FORNECEDOR TESTE LTDA</xNome>
+                  </prest>
+                  <toma>
+                    <CNPJ>25014360000173</CNPJ>
+                    <xNome>DGA ENERGIA E AUTOMACAO LTDA</xNome>
+                  </toma>
+                  <vServ>100.00</vServ>
+                  <vLiq>100.00</vLiq>
+                </NFSe>
+                """;
     }
 }

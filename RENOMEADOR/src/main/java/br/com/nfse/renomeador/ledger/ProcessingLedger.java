@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class ProcessingLedger {
+    private static final String TRANSIENT_TECHNICAL_ERROR_PREFIX = "ERRO_PROCESSAMENTO_";
+
     private final Path ledgerFile;
     private final Object lock = new Object();
     private List<LedgerEntry> loadedEntries;
@@ -37,7 +39,8 @@ public final class ProcessingLedger {
                 updatedEntries.add(entry);
                 loadedEntries = List.copyOf(updatedEntries);
             }
-            if (loadedHashKeys != null && !entry.sha256().isBlank()) {
+            if (loadedHashKeys != null && blocksReprocessing(entry) && finalDestinationExists(entry)
+                    && !entry.sha256().isBlank()) {
                 loadedHashKeys.add(hashKey(entry.companyId(), entry.sha256()));
             }
         }
@@ -53,8 +56,10 @@ public final class ProcessingLedger {
                 if (!entry.companyId().equals(companyId)) {
                     continue;
                 }
-                if (entry.companyId().equals(companyId)
-                        && entry.sourcePath().equals(sourcePath)
+                if (!blocksReprocessing(entry) || !finalDestinationExists(entry)) {
+                    continue;
+                }
+                if (entry.sourcePath().equals(sourcePath)
                         && entry.size() == size
                         && entry.lastModified().equals(lastModified)
                         && entry.sha256().equals(sha256)) {
@@ -79,7 +84,7 @@ public final class ProcessingLedger {
         List<LedgerEntry> entries = loadEntriesFromDisk();
         Set<String> hashKeys = new HashSet<>();
         for (LedgerEntry entry : entries) {
-            if (!entry.sha256().isBlank()) {
+            if (blocksReprocessing(entry) && finalDestinationExists(entry) && !entry.sha256().isBlank()) {
                 hashKeys.add(hashKey(entry.companyId(), entry.sha256()));
             }
         }
@@ -123,6 +128,21 @@ public final class ProcessingLedger {
 
     private static String hashKey(String companyId, String sha256) {
         return companyId + "\t" + sha256;
+    }
+
+    private static boolean blocksReprocessing(LedgerEntry entry) {
+        if ("WRONG_COMPANY".equals(entry.finalStatus())) {
+            return false;
+        }
+        if (!"ERROR".equals(entry.finalStatus())) {
+            return true;
+        }
+        Path fileName = entry.finalDestination().getFileName();
+        return fileName == null || !fileName.toString().startsWith(TRANSIENT_TECHNICAL_ERROR_PREFIX);
+    }
+
+    private static boolean finalDestinationExists(LedgerEntry entry) {
+        return !entry.finalDestination().toString().isBlank() && Files.exists(entry.finalDestination());
     }
 
     private static String serialize(LedgerEntry entry) {

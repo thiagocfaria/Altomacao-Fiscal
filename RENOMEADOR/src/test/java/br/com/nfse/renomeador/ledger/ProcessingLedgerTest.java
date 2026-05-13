@@ -16,6 +16,9 @@ class ProcessingLedgerTest {
     @Test
     void persistsEntryAndFindsAlreadyProcessedFileAfterReopen() throws Exception {
         Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
+        Path destination = tempDir.resolve("processados").resolve("NF 1.pdf");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, "pdf");
         LedgerEntry entry = new LedgerEntry(
                 "empresa_a",
                 Path.of("/entrada/nota.pdf"),
@@ -23,7 +26,7 @@ class ProcessingLedgerTest {
                 Instant.parse("2026-04-30T12:00:00Z"),
                 "hash123",
                 "OK",
-                Path.of("/processados/NF 1.pdf"),
+                destination,
                 Instant.parse("2026-04-30T12:01:00Z")
         );
 
@@ -41,6 +44,9 @@ class ProcessingLedgerTest {
     void findsAlreadyProcessedFileByHashEvenWhenPathChanged() throws Exception {
         Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
         ProcessingLedger ledger = new ProcessingLedger(ledgerFile);
+        Path destination = tempDir.resolve("processados").resolve("NF 1.pdf");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, "pdf");
         ledger.record(new LedgerEntry(
                 "empresa_a",
                 Path.of("/entrada/nota-original.pdf"),
@@ -48,7 +54,7 @@ class ProcessingLedgerTest {
                 Instant.parse("2026-04-30T12:00:00Z"),
                 "hash123",
                 "OK",
-                Path.of("/processados/NF 1.pdf"),
+                destination,
                 Instant.parse("2026-04-30T12:01:00Z")
         ));
 
@@ -60,12 +66,91 @@ class ProcessingLedgerTest {
     }
 
     @Test
+    void doesNotBlockReprocessingWhenFinalDestinationWasDeleted() throws Exception {
+        Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
+        ProcessingLedger ledger = new ProcessingLedger(ledgerFile);
+        Path destination = tempDir.resolve("processados").resolve("NF 1.pdf");
+        ledger.record(new LedgerEntry(
+                "empresa_a",
+                Path.of("/entrada/nota-original.pdf"),
+                123L,
+                Instant.parse("2026-04-30T12:00:00Z"),
+                "hash123",
+                "OK",
+                destination,
+                Instant.parse("2026-04-30T12:01:00Z")
+        ));
+
+        ProcessingLedger reopened = new ProcessingLedger(ledgerFile);
+
+        assertThat(reopened.hasProcessed("empresa_a", Path.of("/entrada/nota-renomeada.pdf"), 456L,
+                Instant.parse("2026-05-01T12:00:00Z"), "hash123"))
+                .isFalse();
+    }
+
+    @Test
+    void doesNotTreatTransientTechnicalErrorAsAlreadyProcessed() throws Exception {
+        Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
+        ProcessingLedger ledger = new ProcessingLedger(ledgerFile);
+        ledger.record(new LedgerEntry(
+                "empresa_a",
+                Path.of("/entrada/nota.xml"),
+                123L,
+                Instant.parse("2026-04-30T12:00:00Z"),
+                "hash123",
+                "ERROR",
+                Path.of("/revisar/ERRO_PROCESSAMENTO_nota.xml"),
+                Instant.parse("2026-04-30T12:01:00Z")
+        ));
+
+        ProcessingLedger reopened = new ProcessingLedger(ledgerFile);
+
+        assertThat(reopened.hasProcessed("empresa_a", Path.of("/entrada/nota.xml"), 123L,
+                Instant.parse("2026-04-30T12:00:00Z"), "hash123"))
+                .isFalse();
+        assertThat(reopened.hasProcessed("empresa_a", Path.of("/entrada/nota-renomeada.xml"), 456L,
+                Instant.parse("2026-05-01T12:00:00Z"), "hash123"))
+                .isFalse();
+    }
+
+    @Test
+    void treatsTerminalReviewErrorAsAlreadyProcessed() throws Exception {
+        Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
+        ProcessingLedger ledger = new ProcessingLedger(ledgerFile);
+        Path destination = tempDir.resolve("revisar").resolve("ARQUIVO_MUITO_GRANDE_nota.pdf");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, "pdf");
+        ledger.record(new LedgerEntry(
+                "empresa_a",
+                Path.of("/entrada/nota.pdf"),
+                123L,
+                Instant.parse("2026-04-30T12:00:00Z"),
+                "hash123",
+                "ERROR",
+                destination,
+                Instant.parse("2026-04-30T12:01:00Z")
+        ));
+
+        ProcessingLedger reopened = new ProcessingLedger(ledgerFile);
+
+        assertThat(reopened.hasProcessed("empresa_a", Path.of("/entrada/nota.pdf"), 123L,
+                Instant.parse("2026-04-30T12:00:00Z"), "hash123"))
+                .isTrue();
+        assertThat(reopened.hasProcessed("empresa_a", Path.of("/entrada/nota-renomeada.pdf"), 456L,
+                Instant.parse("2026-05-01T12:00:00Z"), "hash123"))
+                .isTrue();
+    }
+
+    @Test
     void ignoresMalformedLinesAndKeepsThemForAudit() throws Exception {
         Path ledgerFile = tempDir.resolve("logs").resolve("processados.idx");
+        Path destination = tempDir.resolve("processados").resolve("NF 1.pdf");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, "pdf");
         Files.createDirectories(ledgerFile.getParent());
         Files.writeString(ledgerFile, String.join(System.lineSeparator(),
                 "linha-quebrada",
-                "empresa_a\t/entrada/nota.pdf\t123\t2026-04-30T12:00:00Z\thash123\tOK\t/processados/NF 1.pdf\t2026-04-30T12:01:00Z"
+                "empresa_a\t/entrada/nota.pdf\t123\t2026-04-30T12:00:00Z\thash123\tOK\t" + destination + "\t2026-04-30T12:01:00Z"
         ));
 
         ProcessingLedger ledger = new ProcessingLedger(ledgerFile);

@@ -73,14 +73,14 @@ final class WatchFolderProcessor {
         for (MissingCustomerRecoveryProcessor.RecoveryBatch batch : recoveryProcessor.recover(routes, homologation)) {
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(batch.sourcePath(),
                     ignored -> new ProcessingSummary());
-            recordResultsForExisting(batch.sourcePath(), batch.results(), pathSummary, summariesByPath, routes);
+            recordResults(batch.sourcePath(), batch.results(), pathSummary, summariesByPath, routes);
             recordAll(overall, batch.results());
         }
         for (InputCandidate candidate : scanner.scan(paths)) {
             ProcessingSummary pathSummary = summariesByPath.computeIfAbsent(candidate.companyPath(),
                     ignored -> new ProcessingSummary());
             List<FileProcessingResult> results = processCandidateWithRetry(candidate, homologation, routes);
-            recordResultsForExisting(candidate.companyPath(), results, pathSummary, summariesByPath, routes);
+            recordResults(candidate.companyPath(), results, pathSummary, summariesByPath, routes);
             recordAll(overall, results);
         }
         for (Map.Entry<ResolvedCompanyPath, ProcessingSummary> entry : summariesByPath.entrySet()) {
@@ -111,7 +111,7 @@ final class WatchFolderProcessor {
                 continue;
             }
             Path file = input.resolve(relative);
-            if (!isPdf(file)) {
+            if (!isSupportedDocument(file)) {
                 continue;
             }
             recordResults(companyPath, processCandidateWithRetry(new InputCandidate(companyPath, file), homologation, routes),
@@ -171,20 +171,19 @@ final class WatchFolderProcessor {
 
     private void recordResults(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
                                ProcessingSummary summary, CompanyRouteDirectory routes) throws IOException {
-        for (FileProcessingResult result : results) {
-            recordOperationalLogs(companyPath, result, routes);
-            record(summary, result);
-        }
+        recordResults(companyPath, results, summary, null, routes);
     }
 
-    private void recordResultsForExisting(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
-                                          ProcessingSummary summary,
-                                          Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath,
-                                          CompanyRouteDirectory routes) throws IOException {
+    private void recordResults(ResolvedCompanyPath companyPath, List<FileProcessingResult> results,
+                               ProcessingSummary summary,
+                               Map<ResolvedCompanyPath, ProcessingSummary> summariesByPath,
+                               CompanyRouteDirectory routes) throws IOException {
         for (FileProcessingResult result : results) {
             recordOperationalLogs(companyPath, result, routes);
             record(summary, result);
-            recordRoutedSummary(summariesByPath, companyPath, result, routes);
+            if (summariesByPath != null) {
+                recordRoutedSummary(summariesByPath, companyPath, result, routes);
+            }
         }
     }
 
@@ -231,8 +230,9 @@ final class WatchFolderProcessor {
         }
     }
 
-    private static boolean isPdf(Path path) {
-        return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
+    private static boolean isSupportedDocument(Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return fileName.endsWith(".pdf") || fileName.endsWith(".xml");
     }
 
     private static boolean isUnstableSkip(List<FileProcessingResult> results) {
