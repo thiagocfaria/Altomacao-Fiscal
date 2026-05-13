@@ -483,13 +483,14 @@ public final class InvoiceProcessingPipeline {
                                                       boolean preserveInput, CompanyRouteDirectory routes,
                                                       Exception exception) {
         try {
-            DestinationResult destination = destinationService.sendTechnicalError(source, companyPath, preserveInput, routes);
+            DestinationResult destination = destinationService.sendTechnicalError(source, companyPath, preserveInput,
+                    DocumentType.from(source), routes);
             return FileProcessingResult.failed(companyPath.company().id(), source,
                     "Erro tecnico no processamento", destination.destination(), exception);
         } catch (Exception moveException) {
             exception.addSuppressed(moveException);
             return FileProcessingResult.failed(companyPath.company().id(), source,
-                    "Erro tecnico no processamento; falha ao mover para revisao", null, exception);
+                    "Erro tecnico no processamento; falha ao mover para NAO SUPORTADOS", null, exception);
         }
     }
 
@@ -508,15 +509,15 @@ public final class InvoiceProcessingPipeline {
                                                      long size) {
         try {
             String fileName = "ARQUIVO_MUITO_GRANDE_" + source.getFileName();
-            DestinationResult destination = destinationService.sendToReview(source, companyPath, fileName,
-                    preserveInput, routes);
+            DestinationResult destination = destinationService.send(source, companyPath, ProcessingStatus.UNSUPPORTED,
+                    fileName, preserveInput, false, DocumentType.PDF, routes);
             String reason = "Arquivo excede limite de " + (MAX_FILE_SIZE_BYTES / 1_048_576L)
                     + "MB: " + (size / 1_048_576L) + "MB";
             return FileProcessingResult.failed(companyPath.company().id(), source, reason,
                     destination.destination(), new IllegalArgumentException(reason));
         } catch (Exception moveException) {
             return FileProcessingResult.failed(companyPath.company().id(), source,
-                    "Arquivo excede limite de tamanho; falha ao mover para revisao", null, moveException);
+                    "Arquivo excede limite de tamanho; falha ao mover para NAO SUPORTADOS", null, moveException);
         }
     }
 
@@ -525,14 +526,14 @@ public final class InvoiceProcessingPipeline {
                                                         int pages) {
         try {
             String fileName = "PAGINAS_DEMAIS_" + source.getFileName();
-            DestinationResult destination = destinationService.sendToReview(source, companyPath, fileName,
-                    preserveInput, routes);
+            DestinationResult destination = destinationService.send(source, companyPath, ProcessingStatus.UNSUPPORTED,
+                    fileName, preserveInput, false, DocumentType.PDF, routes);
             String reason = "PDF excede limite de paginas " + MAX_PAGE_COUNT + ": " + pages + " paginas";
             return FileProcessingResult.failed(companyPath.company().id(), source, reason,
                     destination.destination(), new IllegalArgumentException(reason));
         } catch (Exception moveException) {
             return FileProcessingResult.failed(companyPath.company().id(), source,
-                    "PDF excede limite de paginas; falha ao mover para revisao", null, moveException);
+                    "PDF excede limite de paginas; falha ao mover para NAO SUPORTADOS", null, moveException);
         }
     }
 

@@ -5,7 +5,6 @@ Painel simples de operacao do sistema de automacao fiscal.
 Controles principais:
   - VERIFICAR TUDO: valida cadastro, certificados e mostra o que o sistema faria.
   - LIGAR/DESLIGAR SISTEMA: inicia ou encerra RENOMEADOR + loop de reconciliacao.
-  - TESTAR AGORA:   executa reconciliacao real imediata para gravacao/teste.
   - MES DE ATUACAO: define o mes passado para o importador no reconciliar.
 """
 from __future__ import annotations
@@ -18,7 +17,7 @@ import subprocess
 import threading
 import time
 import tkinter as tk
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import scrolledtext, messagebox
 
@@ -35,6 +34,13 @@ NSU_INICIAL = os.environ.get("ALTOMACAO_NSU_INICIAL", "1")
 MAX_LOTES_RECONCILIACAO = os.environ.get("ALTOMACAO_MAX_LOTES_RECONCILIACAO", "500")
 PORTAL_TENTATIVAS = os.environ.get("ALTOMACAO_PORTAL_TENTATIVAS", "5")
 PORTAL_RETRY_BASE_MS = os.environ.get("ALTOMACAO_PORTAL_RETRY_BASE_MS", "2000")
+HEALTH_MAX_IDADE_SEGUNDOS = int(
+    os.environ.get("ALTOMACAO_HEALTH_MAX_IDADE_SEGUNDOS", str(max(120, INTERVALO_SEGUNDOS * 3)))
+)
+TITULO_SISTEMA = "Sistema Prótons"
+SUBTITULO_SISTEMA = "Automacao Fiscal NFS-e"
+ASSINATURA_DEV = "DEV Thiago Caetano Faria"
+MENTORIA_PROJETO = "Mentoria: Fernando, Wilderson e Ana Carolina"
 MES_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
@@ -56,10 +62,19 @@ class HealthRenomeador:
     ignorados: int
     erros: int
     mensagem: str
+    ultimo_pulso: datetime | None = None
 
     @property
     def sem_pendencia_ativa(self) -> bool:
         return self.total == 0 and self.revisar == 0 and self.erros == 0
+
+    def pulso_atual(self, agora: datetime, max_idade_segundos: int) -> bool:
+        if self.ultimo_pulso is None:
+            return False
+        referencia = _normalizar_datetime(agora)
+        ultimo = _normalizar_datetime(self.ultimo_pulso)
+        idade = (referencia - ultimo).total_seconds()
+        return 0 <= idade <= max_idade_segundos
 
 
 @dataclass(frozen=True)
@@ -154,7 +169,26 @@ def ler_health_renomeador(path: Path = HEALTH_RENOMEADOR) -> HealthRenomeador | 
         ignorados=inteiro("ignorados"),
         erros=inteiro("erros"),
         mensagem=str(dados.get("mensagem", "")),
+        ultimo_pulso=_parse_datetime_iso(dados.get("ultimoPulso")),
     )
+
+
+def _parse_datetime_iso(valor: object) -> datetime | None:
+    if not isinstance(valor, str) or not valor.strip():
+        return None
+    texto = valor.strip()
+    if texto.endswith("Z"):
+        texto = texto[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(texto)
+    except ValueError:
+        return None
+
+
+def _normalizar_datetime(valor: datetime) -> datetime:
+    if valor.tzinfo is None:
+        return valor.replace(tzinfo=timezone.utc)
+    return valor.astimezone(timezone.utc)
 
 
 def documentos_reimportados_saida(saida: str) -> int:
@@ -183,6 +217,8 @@ def resumo_pos_reconciliacao(
     intervalo_segundos: int,
     rodadas_sem_pendencia: int,
     proximo_ciclo: bool,
+    agora: datetime | None = None,
+    health_max_idade_segundos: int = HEALTH_MAX_IDADE_SEGUNDOS,
 ) -> ResumoPosReconciliacao:
     sufixo = _sufixo_proximo_ciclo(intervalo_segundos, proximo_ciclo)
     if returncode != 0:
@@ -212,6 +248,20 @@ def resumo_pos_reconciliacao(
     if health is None:
         return ResumoPosReconciliacao(
             "Rodada sem novas importacoes, mas nao consegui ler o health do RENOMEADOR." + sufixo,
+            "erro",
+            False,
+            False,
+        )
+
+    referencia = _normalizar_datetime(agora or datetime.now(timezone.utc))
+    if not health.pulso_atual(referencia, health_max_idade_segundos):
+        ultimo = "ausente"
+        if health.ultimo_pulso is not None:
+            ultimo = _normalizar_datetime(health.ultimo_pulso).isoformat()
+        return ResumoPosReconciliacao(
+            "Rodada sem novas importacoes, mas o health do RENOMEADOR esta desatualizado "
+            f"(ultimo pulso: {ultimo}). Reinicie ou confira o RENOMEADOR antes de declarar tudo conferido."
+            + sufixo,
             "erro",
             False,
             False,
@@ -291,7 +341,7 @@ def tag_linha_log(linha: str) -> str:
 class Painel:
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("PAINEL DE AUTOMACAO FISCAL")
+        self.root.title(TITULO_SISTEMA)
         self.root.geometry("900x600")
         self.root.configure(bg="#1a1a2e")
 
@@ -312,10 +362,18 @@ class Painel:
         topo = tk.Frame(self.root, bg="#1a1a2e")
         topo.pack(fill=tk.X, padx=20, pady=15)
 
+        marca = tk.Frame(topo, bg="#1a1a2e")
+        marca.pack(side=tk.LEFT)
+
         tk.Label(
-            topo, text="AUTOMACAO FISCAL NFS-e",
-            font=("Helvetica", 22, "bold"), fg="#e94560", bg="#1a1a2e",
-        ).pack(side=tk.LEFT)
+            marca, text=TITULO_SISTEMA,
+            font=("Helvetica", 27, "bold"), fg="#f8fafc", bg="#1a1a2e",
+        ).pack(anchor=tk.W)
+
+        tk.Label(
+            marca, text=SUBTITULO_SISTEMA.upper(),
+            font=("Helvetica", 10, "bold"), fg="#22d3ee", bg="#1a1a2e",
+        ).pack(anchor=tk.W, pady=(1, 0))
 
         self.lbl_status = tk.Label(
             topo, text="● DESLIGADO",
@@ -382,14 +440,6 @@ class Painel:
         )
         self.btn_ligar.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
-        self.btn_testar = tk.Button(
-            botoes, text="TESTAR AGORA", command=self.acao_testar_agora,
-            font=("Helvetica", 14, "bold"), bg="#8e44ad", fg="white",
-            activebackground="#9b59b6", activeforeground="white",
-            height=2, relief=tk.FLAT, cursor="hand2",
-        )
-        self.btn_testar.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
         self.area_log = scrolledtext.ScrolledText(
             self.root, font=("Consolas", 10),
             bg="#0a0a0f", fg="#d0d0d0", insertbackground="white",
@@ -403,10 +453,20 @@ class Painel:
 
         rodape = tk.Frame(self.root, bg="#1a1a2e")
         rodape.pack(fill=tk.X, padx=20, pady=5)
+        credito = tk.Frame(rodape, bg="#1a1a2e")
+        credito.pack(side=tk.LEFT)
+        tk.Label(
+            credito, text=ASSINATURA_DEV,
+            font=("Z003", 12, "italic"), fg="#8da4b8", bg="#1a1a2e",
+        ).pack(anchor=tk.W)
+        tk.Label(
+            credito, text=MENTORIA_PROJETO,
+            font=("Helvetica", 8), fg="#5f7588", bg="#1a1a2e",
+        ).pack(anchor=tk.W)
         tk.Label(
             rodape, text=f"Backend: {BACKEND}",
             font=("Helvetica", 9), fg="#666", bg="#1a1a2e",
-        ).pack(side=tk.LEFT)
+        ).pack(side=tk.RIGHT)
 
         self._log("Painel pronto. Clique em VERIFICAR TUDO para conferir o sistema.\n", "info")
         self._sincronizar_mes_automatico()
@@ -571,7 +631,6 @@ class Painel:
         self.ligado = True
         self.btn_ligar.config(text="DESLIGAR SISTEMA", bg="#7f1d1d", activebackground="#991b1b")
         self.btn_verificar.config(state=tk.DISABLED)
-        self.btn_testar.config(state=tk.NORMAL)
         self.ent_mes.config(state=tk.DISABLED)
         self.btn_mes_anterior.config(state=tk.DISABLED)
         self.btn_mes_proximo.config(state=tk.DISABLED)
@@ -620,26 +679,6 @@ class Painel:
         self._log(f"Iniciando conferidor de janelas a cada {INTERVALO_SEGUNDOS}s...\n", "info")
         self.thread_loop = threading.Thread(target=self._loop_captura, daemon=True)
         self.thread_loop.start()
-
-    def acao_testar_agora(self) -> None:
-        self.btn_testar.config(state=tk.DISABLED)
-        threading.Thread(target=self._capturar_agora, daemon=True).start()
-
-    def _capturar_agora(self) -> None:
-        try:
-            mes = self._mes_operacao()
-            self._titulo("TESTE AGORA - RECONCILIAR PORTAL X DESTINO")
-            self._log(f"Mes de atuacao: {mes}\n", "info")
-            rc, saida = self._rodar(
-                comando_reconciliar(mes),
-                "reconciliar agora",
-            )
-            self._registrar_pos_reconciliacao(rc, saida, proximo_ciclo=self.ligado)
-        except ValueError as exc:
-            messagebox.showerror("Mes invalido", str(exc))
-            self._log(f"Mes de atuacao invalido: {exc}\n", "erro")
-        finally:
-            self.btn_testar.config(state=tk.NORMAL)
 
     def _streamar_saida(self, proc: subprocess.Popen, rotulo: str) -> None:
         if proc.stdout is None:
@@ -693,7 +732,6 @@ class Painel:
                 bg="#16a085", activebackground="#1abc9c",
             )
             self.btn_verificar.config(state=tk.NORMAL)
-            self.btn_testar.config(state=tk.NORMAL)
             self.chk_automatico.config(state=tk.NORMAL)
             self._sincronizar_mes_automatico()
             return
@@ -719,7 +757,6 @@ class Painel:
             bg="#16a085", activebackground="#1abc9c",
         )
         self.btn_verificar.config(state=tk.NORMAL)
-        self.btn_testar.config(state=tk.NORMAL)
         self.chk_automatico.config(state=tk.NORMAL)
         self._sincronizar_mes_automatico()
         self._log("Sistema desligado.\n", "ok")

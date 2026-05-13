@@ -1,6 +1,16 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import painel
+
+AGORA_UTC = datetime(2026, 5, 13, 12, 0, tzinfo=timezone.utc)
+
+
+def test_identidade_visual_do_painel_usa_titulo_e_assinatura_do_sistema():
+    assert painel.TITULO_SISTEMA == "Sistema Prótons"
+    assert painel.SUBTITULO_SISTEMA == "Automacao Fiscal NFS-e"
+    assert painel.ASSINATURA_DEV == "DEV Thiago Caetano Faria"
+    assert painel.MENTORIA_PROJETO == "Mentoria: Fernando, Wilderson e Ana Carolina"
 
 
 def test_mes_atuacao_automatico_usa_mes_vigente():
@@ -84,6 +94,23 @@ def test_tag_linha_log_destaca_bloqueado_como_erro():
     assert painel.tag_linha_log("NIVEL: OK") == "ok"
 
 
+def test_painel_nao_expoe_testar_agora_manual():
+    fonte = Path(painel.__file__).read_text(encoding="utf-8")
+
+    assert "TESTAR AGORA" not in fonte
+    assert not hasattr(painel.Painel, "acao_testar_agora")
+
+
+def test_launcher_powershell_roda_painel_a_partir_da_pasta_do_script():
+    fonte = Path("rodar_painel.ps1").read_text(encoding="utf-8")
+
+    assert "$PSScriptRoot" in fonte
+    assert "ALTOMACAO_ROOT" in fonte
+    assert "painel.py" in fonte
+    assert "python3" in fonte
+    assert "py" in fonte
+
+
 def test_documentos_reimportados_prefere_total_final_da_saida():
     saida = """
 - DGA ENERGIA [25014360000173]
@@ -104,6 +131,7 @@ def test_resumo_pos_reconciliacao_primeira_rodada_vazia_confirma_na_proxima():
         ignorados=0,
         erros=0,
         mensagem="varredura periodica concluida",
+        ultimo_pulso=AGORA_UTC,
     )
 
     resumo = painel.resumo_pos_reconciliacao(
@@ -113,6 +141,7 @@ def test_resumo_pos_reconciliacao_primeira_rodada_vazia_confirma_na_proxima():
         intervalo_segundos=60,
         rodadas_sem_pendencia=1,
         proximo_ciclo=True,
+        agora=AGORA_UTC,
     )
 
     assert resumo.sem_pendencia_ativa
@@ -130,6 +159,7 @@ def test_resumo_pos_reconciliacao_segunda_rodada_vazia_declara_tudo_conferido():
         ignorados=1,
         erros=0,
         mensagem="evento processado",
+        ultimo_pulso=AGORA_UTC,
     )
 
     resumo = painel.resumo_pos_reconciliacao(
@@ -139,6 +169,7 @@ def test_resumo_pos_reconciliacao_segunda_rodada_vazia_declara_tudo_conferido():
         intervalo_segundos=60,
         rodadas_sem_pendencia=2,
         proximo_ciclo=True,
+        agora=AGORA_UTC,
     )
 
     assert resumo.sem_pendencia_ativa
@@ -156,6 +187,7 @@ def test_resumo_pos_reconciliacao_nao_declara_tudo_com_pendencia_ativa():
         ignorados=0,
         erros=0,
         mensagem="evento processado",
+        ultimo_pulso=AGORA_UTC,
     )
 
     resumo = painel.resumo_pos_reconciliacao(
@@ -165,8 +197,59 @@ def test_resumo_pos_reconciliacao_nao_declara_tudo_com_pendencia_ativa():
         intervalo_segundos=60,
         rodadas_sem_pendencia=0,
         proximo_ciclo=True,
+        agora=AGORA_UTC,
     )
 
     assert not resumo.sem_pendencia_ativa
     assert not resumo.tudo_conferido
     assert "RENOMEADOR ainda tem pendencia" in resumo.mensagem
+
+
+def test_ler_health_renomeador_parseia_ultimo_pulso(tmp_path):
+    health_path = tmp_path / "watch-status.json"
+    health_path.write_text(
+        """
+{
+  "status": "OK",
+  "ultimoPulso": "2026-05-13T12:00:00Z",
+  "total": 0,
+  "revisar": 0,
+  "ignorados": 0,
+  "erros": 0,
+  "mensagem": "varredura periodica concluida"
+}
+""",
+        encoding="utf-8",
+    )
+
+    health = painel.ler_health_renomeador(health_path)
+
+    assert health is not None
+    assert health.ultimo_pulso == AGORA_UTC
+
+
+def test_resumo_pos_reconciliacao_nao_declara_tudo_com_health_desatualizado():
+    health = painel.HealthRenomeador(
+        status="OK",
+        total=0,
+        revisar=0,
+        ignorados=0,
+        erros=0,
+        mensagem="varredura periodica concluida",
+        ultimo_pulso=AGORA_UTC - timedelta(seconds=181),
+    )
+
+    resumo = painel.resumo_pos_reconciliacao(
+        0,
+        "Documentos re-importados: 0",
+        health,
+        intervalo_segundos=60,
+        rodadas_sem_pendencia=2,
+        proximo_ciclo=True,
+        agora=AGORA_UTC,
+        health_max_idade_segundos=180,
+    )
+
+    assert not resumo.sem_pendencia_ativa
+    assert not resumo.tudo_conferido
+    assert "health do RENOMEADOR esta desatualizado" in resumo.mensagem

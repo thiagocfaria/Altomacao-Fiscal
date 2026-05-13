@@ -16,6 +16,9 @@ final class ParserSupport {
     private static final Pattern POSITIVE_RETENTION_VALUE = Pattern.compile(
             "(ISSQN RETIDO|VL\\. ISSQN RETIDO|TOTAL DAS RETENCOES FEDERAIS|PIS|COFINS|INSS|IRRF|CSLL|OUTRAS RETENCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:\\.0+)*(?:,0{2,4})\\b)([0-9.]+,[0-9]{2,4})"
     );
+    private static final Pattern FEDERAL_RETENTION_TABLE = Pattern.compile(
+            "IRRF\\s+PIS/PASEP\\s+COFINS\\s+CSLL\\s+([0-9.]+,[0-9]{2})\\s+([0-9.]+,[0-9]{2})\\s+([0-9.]+,[0-9]{2})\\s+([0-9.]+,[0-9]{2})"
+    );
     private static final Pattern MUNICIPAL_TAX_WITHHELD_YES = Pattern.compile("IMPOSTO RETIDO PELO TOMADOR\\s*:\\s*SIM");
     private static final Pattern MUNICIPAL_TAX_WITHHELD_NO = Pattern.compile("IMPOSTO RETIDO PELO TOMADOR\\s*:\\s*NAO");
 
@@ -105,6 +108,12 @@ final class ParserSupport {
             if (firstColumn.isBlank()
                     || normalized.matches("\\d{2}/\\d{2}/\\d{4}.*")
                     || normalized.contains("DATA DE")
+                    || normalized.contains("PREFEITURA")
+                    || normalized.contains("SECRETARIA")
+                    || normalized.startsWith("WWW.")
+                    || normalized.contains("NOTA FISCAL")
+                    || normalized.contains("SERIE DO DOCUMENTO")
+                    || normalized.startsWith("NFS-E")
                     || normalized.contains("COD. DE")
                     || normalized.contains("CODIGO")
                     || normalized.contains("RESPONSAVEL")
@@ -127,6 +136,11 @@ final class ParserSupport {
             return "";
         }
         return value.replace('\u00A0', ' ')
+                .replaceAll("(?i)\\s+Data de .*", "")
+                .replaceAll("(?i)\\s+C[oó]d\\. de .*", "")
+                .replaceAll("(?i)\\s+C[oó]digo de .*", "")
+                .replaceAll("(?i)\\s+Respons[aá]vel pela Reten[cç][aã]o.*", "")
+                .replaceAll("\\s+\\d{2}/\\d{2}/\\d{4}(?:\\s+\\d{2}:\\d{2}:\\d{2})?.*$", "")
                 .replaceAll("\\s+-\\s*$", "")
                 .replaceAll("\\s+", " ")
                 .strip();
@@ -146,7 +160,8 @@ final class ParserSupport {
                 || MUNICIPAL_TAX_WITHHELD_NO.matcher(normalized).find();
         boolean explicitPositive = normalized.matches("(?s).*ISSQN RETIDO\\s+SIM.*")
                 || MUNICIPAL_TAX_WITHHELD_YES.matcher(normalized).find()
-                || POSITIVE_RETENTION_VALUE.matcher(normalized).find();
+                || POSITIVE_RETENTION_VALUE.matcher(normalized).find()
+                || hasPositiveFederalRetentionTable(normalized);
         boolean netLowerThanService = serviceValue != null && netValue != null && netValue.compareTo(serviceValue) < 0;
 
         if (notRetained && (explicitPositive || netLowerThanService)) {
@@ -170,6 +185,18 @@ final class ParserSupport {
 
     private static boolean hasPositiveDiscountOrDeduction(String normalized) {
         return normalized.matches("(?s).*(DESCONTO|DEDUCAO|DEDUCOES)[^\\r\\n]{0,120}R\\$\\s*(?!0+(?:,00)?)([0-9.]+,[0-9]{2}).*");
+    }
+
+    private static boolean hasPositiveFederalRetentionTable(String normalized) {
+        Matcher matcher = FEDERAL_RETENTION_TABLE.matcher(normalized);
+        while (matcher.find()) {
+            for (int group = 1; group <= 4; group++) {
+                if (parseMoney(matcher.group(group)).signum() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     record RetentionAnalysis(boolean retained, boolean conflict) {

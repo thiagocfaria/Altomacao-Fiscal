@@ -63,10 +63,10 @@ Validacao recente:
 
 ```bash
 mvn -Dmaven.repo.local=/tmp/m2-nfse -pl RENOMEADOR test
-# 150 testes, 0 falhas
+# 169 testes, 0 falhas
 
 mvn -Dmaven.repo.local=/tmp/m2-nfse verify -Pintegration
-# 150 testes unitarios + 1 teste de integracao, 0 falhas
+# 169 testes unitarios + 1 teste de integracao, 0 falhas
 ```
 
 Pendente antes de declarar producao final:
@@ -157,12 +157,14 @@ CAMINHO REST/
 │   ├── processados/
 │   ├── RETIDO/
 │   ├── canceladas/
-│   └── TOMADOR NAO ENCONTRADO/
+│   ├── TOMADOR NAO ENCONTRADO/
+│   └── NAO SUPORTADOS/
 └── XML/
     ├── processados/
     ├── RETIDO/
     ├── canceladas/
-    └── TOMADOR NAO ENCONTRADO/
+    ├── TOMADOR NAO ENCONTRADO/
+    └── NAO SUPORTADOS/
 ```
 
 Semantica das pastas:
@@ -171,6 +173,7 @@ Semantica das pastas:
 - `RETIDO/`: notas validas com retencao;
 - `canceladas/`: notas canceladas;
 - `TOMADOR NAO ENCONTRADO/`: nota entrou em REST errada e o tomador ainda nao tem REST ativo no cadastro.
+- `NAO SUPORTADOS/`: PDF/XML que o RENOMEADOR nao conseguiu ler ou validar com seguranca; permanece dentro da REST de origem.
 
 Saidas tecnicas no backend do sistema:
 
@@ -373,9 +376,12 @@ Tambem confirme:
 | Layout | Assinatura textual |
 |---|---|
 | Portal Nacional DANFSe v1.0 | contem `DANFSe v1.0` e `Numero da DPS` |
-| ABRASF/ISSNet municipal | contem `Nota Fiscal de Servico Eletronica` e `Cod. de Autenticidade` |
+| ABRASF/ISSNet municipal | NFS-e municipal textual com titulo de nota de servico e codigo de autenticidade/verificacao; inclui variantes ISSNet, Sao Paulo, Barueri, Anapolis e Goiania |
 
-PDF sem texto selecionavel ou layout nao homologado vai para revisao tecnica no backend.
+PDF sem texto selecionavel, layout nao homologado, arquivo grande demais, paginas demais
+ou dados obrigatorios insuficientes vai para `PDF/NAO SUPORTADOS/` dentro da propria
+REST de origem. Nao vai para revisao tecnica no backend e nao sai para outro caminho
+da planilha enquanto o RENOMEADOR nao tiver certeza fiscal do destino.
 
 ## 9. Regras Operacionais
 
@@ -419,13 +425,14 @@ Movimentacao de arquivos:
 - quando o movimento atomico nao e seguro ou nao e suportado, o sistema usa `copiar -> verificar conteudo -> renomear destino -> verificar destino -> apagar origem`;
 - a origem nao e apagada antes da copia final ser validada;
 - falha de movimentacao, renomeacao, PDF/XML invalido ou layout nao suportado aparece no log operacional e no `painel-operacional.tsv` como `ATENCAO`.
+- PDF/XML nao suportado ou ilegiveis ficam em `PDF/NAO SUPORTADOS/` ou `XML/NAO SUPORTADOS/` dentro da REST de origem; backend guarda log/ledger, nao o arquivo operacional.
 
 PDF pesado ou suspeito:
 
-- arquivo acima de 50MB vai direto para `backend/empresas/<empresa>/revisar/` com prefixo `ARQUIVO_MUITO_GRANDE_`;
-- PDF acima de 80 paginas vai direto para revisao com prefixo `PAGINAS_DEMAIS_`;
+- arquivo acima de 50MB vai direto para `PDF/NAO SUPORTADOS/` com prefixo `ARQUIVO_MUITO_GRANDE_`;
+- PDF acima de 80 paginas vai direto para `PDF/NAO SUPORTADOS/` com prefixo `PAGINAS_DEMAIS_`;
 - batch/watch usam executor limitado para impedir criacao sem controle de threads;
-- timeout tambem envia o PDF para revisao e aparece no painel como `ATENCAO`.
+- timeout tambem envia o PDF para `PDF/NAO SUPORTADOS/` na REST de origem e aparece no painel como `ATENCAO`.
 
 Logs e controles tecnicos:
 
@@ -624,8 +631,8 @@ Para alterar producao:
 
 ## 14. Limites Conhecidos
 
-- PDF escaneado/imagem vai para revisao; nao ha OCR.
-- Layout nao homologado vai para revisao.
+- PDF escaneado/imagem vai para `PDF/NAO SUPORTADOS/`; nao ha OCR.
+- Layout nao homologado vai para `PDF/NAO SUPORTADOS/` ou `XML/NAO SUPORTADOS/` dentro da REST de origem.
 - Ano das abas mensais segue o ano da execucao atual.
 - Validacao real de caminhos Windows `W:/...` precisa acontecer no Windows da empresa.
 - A macro de duplo clique depende das politicas de seguranca do Excel.

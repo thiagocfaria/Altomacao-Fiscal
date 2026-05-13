@@ -43,6 +43,27 @@ Painel local a partir da raiz:
 python3 painel.py
 ```
 
+No PowerShell, a partir da raiz do projeto:
+
+```powershell
+mvn package
+python3 .\painel.py
+# ou, se o Windows tiver apenas o Python Launcher:
+py -3 .\painel.py
+```
+
+No PowerShell, a partir de qualquer pasta, chame o launcher pelo caminho completo:
+
+```powershell
+cd "C:\caminho\para\Altomacao-Fiscal"
+mvn package
+& "C:\caminho\para\Altomacao-Fiscal\rodar_painel.ps1"
+```
+
+Observacao: `python3 painel.py` e um comando relativo; ele so encontra o arquivo se o
+PowerShell estiver na pasta onde `painel.py` esta. Para abrir de qualquer lugar, use o
+launcher acima ou informe o caminho completo do `painel.py`.
+
 Variaveis opcionais do painel:
 
 ```bash

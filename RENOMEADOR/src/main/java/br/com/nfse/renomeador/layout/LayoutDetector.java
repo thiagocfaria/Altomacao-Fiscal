@@ -30,22 +30,37 @@ public final class LayoutDetector {
     }
 
     private static boolean isAbrasfIssnet(String normalized) {
-        return containsAll(normalized,
-                "NFS-E NOTA FISCAL",
-                "SERVICO ELETRONICA",
-                "COD. DE AUTENTICIDADE",
-                "DETALHAMENTO DOS TRIBUTOS",
-                "DADOS DO TOMADOR DE SERVICOS");
+        return containsAll(normalized, "NFS-E NOTA FISCAL", "SERVICO ELETRONICA")
+                && hasAuthenticationCode(normalized)
+                && (normalized.contains("DADOS DO TOMADOR DE SERVICOS")
+                || normalized.contains("DADOS DO TOMADOR")
+                || normalized.contains("IDENTIFICACAO DO TOMADOR"));
     }
 
     private static boolean isMunicipalAbrasf(String normalized) {
         boolean hasInvoiceTitle = normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICO")
                 || normalized.contains("NOTA FISCAL ELETRONICA DE SERVICOS")
-                || normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICA");
-        return hasInvoiceTitle && (
-                containsAll(normalized, "CODIGO VERIFICACAO", "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS")
-                || containsAll(normalized, "CODIGO DE VERIFICACAO", "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS")
-        );
+                || normalized.contains("NOTA FISCAL DE SERVICOS ELETRONICA")
+                || normalized.contains("NOTA FISCAL DE SERVICO ELETRONICA")
+                || (normalized.contains("NOTA FISCAL DE SERVICO") && normalized.contains("NFS-E"));
+        return hasInvoiceTitle && hasAuthenticationCode(normalized) && hasProviderAndCustomer(normalized);
+    }
+
+    private static boolean hasAuthenticationCode(String normalized) {
+        return normalized.contains("COD. DE AUTENTICIDADE")
+                || normalized.contains("CODIGO DE AUTENTICIDADE")
+                || normalized.contains("CODIGO AUTENTICIDADE")
+                || normalized.contains("CODIGO VERIFICACAO")
+                || normalized.contains("CODIGO DE VERIFICACAO");
+    }
+
+    private static boolean hasProviderAndCustomer(String normalized) {
+        return containsAll(normalized, "PRESTADOR DE SERVICOS", "TOMADOR DE SERVICOS")
+                || containsAll(normalized, "DADOS DO PRESTADOR", "DADOS DO TOMADOR")
+                || containsAll(normalized, "DADOS DO PRESTADOR DE SERVICO", "DADOS DO TOMADOR DE SERVICOS")
+                || containsAll(normalized, "IDENTIFICACAO DO PRESTADOR", "IDENTIFICACAO DO TOMADOR")
+                || containsAll(normalized, "PRESTADOR DE SERVICOS", "NOME TOMADOR DE SERVICOS")
+                || containsAll(normalized, "PREFEITURA MUNICIPAL", "DADOS DO TOMADOR", "CPF / CNPJ");
     }
 
     private static boolean containsAll(String text, String... markers) {

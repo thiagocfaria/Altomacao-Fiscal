@@ -149,7 +149,6 @@ Controles operacionais:
 - `Automatico: mes vigente`: ligado por padrao; ao ligar o sistema, atualiza o campo
   para o mes atual. Em 12/05/2026, por exemplo, usa `2026-05`.
 - `LIGAR SISTEMA` / `DESLIGAR SISTEMA`: mesmo botao alterna o estado do painel.
-- `TESTAR AGORA`: roda uma reconciliacao imediata usando o mesmo mes de atuacao.
 - `VERIFICAR TUDO`: confere JARs, chama `IMPORT API PN verificar-tudo` com o mesmo
   `--mes`, `--ambiente`, `--nsu` e `--max-lotes` usados ao ligar, consulta o Portal
   em modo somente leitura e simula a reconciliacao contra o destino real. Nao publica
@@ -161,9 +160,10 @@ Controles operacionais:
   `max-lotes` truncar a simulacao, o resultado e `ATENCAO`.
 - Apos cada `reconciliar`, o painel resume o resultado real. Ele nao promete janela fixa
   de 05h/12h/17h porque o modo atual e continuo. Quando a rodada reimporta `0`
-  documentos e o health do RENOMEADOR nao tem `total`, `revisar` nem `erros`, a primeira
-  rodada vazia apenas confirma a estabilidade; a segunda rodada vazia declara tudo
-  conferido e informa a proxima conferencia pelo intervalo real do painel.
+  documentos, o health do RENOMEADOR esta atual e nao tem `total`, `revisar` nem
+  `erros`, a primeira rodada vazia apenas confirma a estabilidade; a segunda rodada
+  vazia declara tudo conferido e informa a proxima conferencia pelo intervalo real do
+  painel. Se o health estiver velho, a rodada nao pode ser tratada como tudo conferido.
 
 Observacao atual: com a planilha e os certificados presentes nesta maquina, o bloqueio
 conhecido anterior do `HTTP 404` do ADN foi tratado como parada natural da varredura.

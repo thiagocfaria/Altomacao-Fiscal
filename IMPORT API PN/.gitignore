@@ -27,6 +27,9 @@ operacao/config/*.local.*
 
 !.gitignore
 !.gitkeep
+!pom.xml
+!src/main/resources/logback.xml
+!src/test/resources/logback-test.xml
 !backend/ledger/.gitkeep
 !backend/logs/.gitkeep
 !backend/fila/.gitkeep

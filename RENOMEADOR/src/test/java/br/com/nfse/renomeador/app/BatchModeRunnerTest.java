@@ -40,8 +40,9 @@ class BatchModeRunnerTest {
         assertThat(input.resolve("NF 55034 OK.pdf")).exists();
         assertThat(Files.list(tempDir.resolve("PDF").resolve("processados")).map(path -> path.getFileName().toString()))
                 .anyMatch(name -> name.startsWith("NFSE_9_") && name.endsWith(".pdf"));
-        assertThat(Files.list(backendCompany("empresa_piloto").resolve("revisar")).map(path -> path.getFileName().toString()))
+        assertThat(Files.list(tempDir.resolve("PDF").resolve("NAO SUPORTADOS")).map(path -> path.getFileName().toString()))
                 .anyMatch(name -> name.startsWith("NFSE_DESCONHECIDA_MODELO_NAO_SUPORTADO_") && name.endsWith(".pdf"));
+        assertThat(backendCompany("empresa_piloto").resolve("revisar")).doesNotExist();
         assertThat(monthlyBackendCompany("empresa_piloto").resolve("processados.idx")).exists();
         assertThat(operationalLog("empresa_piloto")).exists();
         assertThat(Files.readString(operationalLog("empresa_piloto")))
@@ -198,9 +199,10 @@ class BatchModeRunnerTest {
 
         assertThat(summary.errors()).isEqualTo(1);
         assertThat(input.resolve("gigante.pdf")).doesNotExist();
-        assertThat(backendCompany("empresa_piloto").resolve("revisar"))
+        assertThat(tempDir.resolve("PDF").resolve("NAO SUPORTADOS"))
                 .isDirectoryContaining(path -> path.getFileName().toString()
                         .equals("ARQUIVO_MUITO_GRANDE_gigante.pdf"));
+        assertThat(backendCompany("empresa_piloto").resolve("revisar")).doesNotExist();
         assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("Arquivo excede limite de 50MB");
         assertThat(Files.readString(operationalPanel()))
@@ -221,9 +223,11 @@ class BatchModeRunnerTest {
         var summary = new BatchModeRunner().run(config, Optional.empty(), Optional.<YearMonth>empty(), false);
 
         assertThat(summary.errors()).isEqualTo(1);
-        assertThat(backendCompany("empresa_piloto").resolve("revisar"))
+        assertThat(input.resolve("muitas-paginas.pdf")).doesNotExist();
+        assertThat(tempDir.resolve("PDF").resolve("NAO SUPORTADOS"))
                 .isDirectoryContaining(path -> path.getFileName().toString()
                         .equals("PAGINAS_DEMAIS_muitas-paginas.pdf"));
+        assertThat(backendCompany("empresa_piloto").resolve("revisar")).doesNotExist();
         assertThat(Files.readString(operationalLog("empresa_piloto")))
                 .contains("PDF excede limite de paginas");
     }

@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 public final class DestinationService {
     public static final String RETAINED_FOLDER = "RETIDO";
     public static final String MISSING_CUSTOMER_FOLDER = "TOMADOR NAO ENCONTRADO";
+    public static final String UNSUPPORTED_FOLDER = "NAO SUPORTADOS";
 
     public DestinationResult send(Path source, ResolvedCompanyPath companyPath, ProcessingStatus status,
                                   String fileName, boolean preserveInput) throws IOException {
@@ -46,8 +47,15 @@ public final class DestinationService {
 
     public DestinationResult sendTechnicalError(Path source, ResolvedCompanyPath companyPath,
                                                 boolean preserveInput, CompanyRouteDirectory routes) throws IOException {
+        return sendTechnicalError(source, companyPath, preserveInput, DocumentType.PDF, routes);
+    }
+
+    public DestinationResult sendTechnicalError(Path source, ResolvedCompanyPath companyPath,
+                                                boolean preserveInput, DocumentType documentType,
+                                                CompanyRouteDirectory routes) throws IOException {
         String fileName = "ERRO_PROCESSAMENTO_" + source.getFileName();
-        return send(source, companyPath, ProcessingStatus.MISSING_REQUIRED, fileName, preserveInput, false, routes);
+        return send(source, companyPath, ProcessingStatus.MISSING_REQUIRED, fileName, preserveInput, false,
+                documentType, routes);
     }
 
     public DestinationResult sendToReview(Path source, ResolvedCompanyPath companyPath, String fileName,
@@ -99,7 +107,8 @@ public final class DestinationService {
         return switch (status) {
             case OK -> retained ? documentRoot.resolve(RETAINED_FOLDER) : documentRoot.resolve(companyPath.company().folders().processed());
             case CANCELLED -> documentRoot.resolve(companyPath.company().folders().cancelled());
-            case UNSUPPORTED, WRONG_COMPANY, MISSING_REQUIRED, RETENTION_CONFLICT, DUPLICATE -> TechnicalPaths.review(routes, companyPath);
+            case UNSUPPORTED, MISSING_REQUIRED, RETENTION_CONFLICT -> documentRoot.resolve(UNSUPPORTED_FOLDER);
+            case WRONG_COMPANY, DUPLICATE -> TechnicalPaths.review(routes, companyPath);
         };
     }
 

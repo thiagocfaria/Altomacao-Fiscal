@@ -57,17 +57,33 @@ class DestinationServiceTest {
     }
 
     @Test
-    void sendsReviewStatusesToReviewAndAvoidsCollision() throws Exception {
+    void sendsUnsupportedStatusToLocalUnsupportedFolderAndAvoidsCollision() throws Exception {
         Path source = source("revisar.pdf");
-        Path review = tempDir.resolve("backend").resolve("empresas").resolve("empresa_a").resolve("revisar");
-        Files.createDirectories(review);
-        Files.writeString(review.resolve("NFSE_1.pdf"), "existente");
+        Path unsupported = tempDir.resolve("PDF").resolve(DestinationService.UNSUPPORTED_FOLDER);
+        Files.createDirectories(unsupported);
+        Files.writeString(unsupported.resolve("NFSE_1.pdf"), "existente");
 
         DestinationResult result = new DestinationService().send(source, companyPath(), ProcessingStatus.UNSUPPORTED,
                 "NFSE_1.pdf", true);
 
-        assertThat(result.destination()).isEqualTo(review.resolve("NFSE_1_01.pdf"));
+        assertThat(result.destination()).isEqualTo(unsupported.resolve("NFSE_1_01.pdf"));
         assertThat(Files.readString(result.destination())).isEqualTo("conteudo");
+        assertThat(tempDir.resolve("backend").resolve("empresas").resolve("empresa_a").resolve("revisar"))
+                .doesNotExist();
+    }
+
+    @Test
+    void sendsXmlTechnicalErrorToLocalXmlUnsupportedFolder() throws Exception {
+        Path source = source("erro.xml");
+
+        DestinationResult result = new DestinationService().sendTechnicalError(source, companyPath(), false,
+                DocumentType.XML, CompanyRouteDirectory.single(companyPath()));
+
+        assertThat(result.destination()).isEqualTo(tempDir.resolve("XML")
+                .resolve(DestinationService.UNSUPPORTED_FOLDER)
+                .resolve("ERRO_PROCESSAMENTO_erro.xml"));
+        assertThat(result.destination()).exists();
+        assertThat(source).doesNotExist();
     }
 
     private Path source(String name) throws Exception {

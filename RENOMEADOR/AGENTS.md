@@ -57,15 +57,15 @@ Regras de fronteira (nao violar):
 | Layout | Identificacao no texto | Pasta de amostras |
 |---|---|---|
 | **Portal Nacional (DANFSe v1.0)** | `"DANFSe v1.0"` + `"Numero da DPS"` | `src/test/resources/nfse-modelos/` |
-| **ABRASF municipal** | `"Nota Fiscal de Servico Eletronica"` + `"Cod. de Autenticidade"` | mesma pasta |
-| **Nao suportado** | nenhum dos dois | renomear com prefixo `MODELO_NAO_SUPORTADO_` |
+| **ABRASF municipal** | NFS-e municipal textual com titulo de nota de servico e codigo de autenticidade/verificacao; inclui variantes ISSNet, Sao Paulo, Barueri, Anapolis e Goiania | mesma pasta |
+| **Nao suportado** | nenhum dos dois ou documento textual que nao e NFS-e | mover para `PDF/NAO SUPORTADOS/` ou `XML/NAO SUPORTADOS/` na REST de origem |
 
 ## Regras de implementacao
 
 1. `PDDocument` sempre em try-with-resources — nunca fechar no finally manual.
 2. `Pattern.compile` sempre como constante estatica — nunca dentro de metodo chamado por arquivo.
 3. Records Java sem setters e sem estado mutavel para dados carregados/extrados.
-4. Campos ausentes devem ser tratados de forma explicita e conservadora; qualquer incerteza tecnica vai para backend/revisar.
+4. Campos ausentes devem ser tratados de forma explicita e conservadora; PDF/XML sem leitura segura fica em `NAO SUPORTADOS/` dentro da REST de origem, nao em backend tecnico.
 5. Mudanca pequena nao justifica espalhar alteracao por varias camadas sem necessidade.
 6. Nao inventar segundo modo de execucao quando os comandos `watch` e `batch` ja cobrem.
 
@@ -76,7 +76,10 @@ A pasta cadastrada em `CAMINHO REST` deve ficar limpa e operacional. O sistema s
 - `processados/` para notas validas sem retencao;
 - `RETIDO/` para notas validas com imposto retido;
 - `canceladas/` para notas canceladas;
-- `TOMADOR NAO ENCONTRADO/` apenas quando a nota caiu em uma REST errada e o CNPJ do tomador nao tem caminho REST ativo no cadastro Excel.
+- `TOMADOR NAO ENCONTRADO/` apenas quando a nota caiu em uma REST errada e o CNPJ do tomador nao tem caminho REST ativo no cadastro Excel;
+- `NAO SUPORTADOS/` para PDF/XML textual ou tecnico que o RENOMEADOR nao conseguiu ler/processar com seguranca.
+
+Arquivo nao suportado, sem texto selecionavel, grande demais, com paginas demais ou com dados obrigatorios insuficientes **nao deve sair da REST de origem para backend tecnico**. O limite seguro e mover para `PDF/NAO SUPORTADOS/` ou `XML/NAO SUPORTADOS/` dentro da propria pasta REST onde ele entrou. So mova para outro `CAMINHO REST` da planilha quando o CNPJ/data extraidos da nota identificarem com seguranca outro destino ativo.
 
 Nao criar `logs/`, `ledger`, `originais/`, `split-work/` ou indices tecnicos dentro da REST do cliente. Logs operacionais, ledger, indices e temporarios ficam no `backend/` do sistema, ao lado do `empresas.yaml` usado na execucao. Nao voltar a criar `backend/originais`; o sistema nao deve duplicar PDFs recebidos.
 
